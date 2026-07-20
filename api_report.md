@@ -189,24 +189,62 @@ curl -X POST "http://localhost:8080/ingestion" \
 {
   "text": "microcontrollers and sensors",
   "tag_name_uuids": [
-    "stem_robotics"
+    "uuid_1",
+    "uuid_2",
+    "uuid_3",
+    "uuid_4"
   ],
   "type": "doc",
-  "total_results": 1,
+  "total_results": 3,
   "results": [
     {
-      "id": "stem_robotics_p15",
-      "collection": "stem_robotics_doc",
+      "id": "uuid_1_p15",
+      "collection": "uuid_1_doc",
       "text": "Robotics fundamentals: sensors, actuators, and microcontrollers.",
-      "distance": 0.1674,
+      "distance": 0.1245,
       "metadata": {
         "volume": "1",
         "physical_page": 15,
         "pdf_page_index": 14,
         "lesson_name": "Hardware Basics",
-        "field": "stem_robotics",
-        "visibility": "public",
-        "file_id": "stem_robotics",
+        "field": "uuid_1",
+        "file_id": "uuid_1",
+        "file_name": "robotics_handbook.pdf",
+        "created_at": "2026-07-15T10:00:00Z",
+        "created_at_timestamp": 1784112000.0,
+        "doc_type": "doc"
+      }
+    },
+    {
+      "id": "uuid_2_p8",
+      "collection": "uuid_2_doc",
+      "text": "Microcontroller interfacing with analog temperature sensors.",
+      "distance": 0.1582,
+      "metadata": {
+        "volume": "1",
+        "physical_page": 8,
+        "pdf_page_index": 7,
+        "lesson_name": "Sensor Interfacing",
+        "field": "uuid_2",
+        "file_id": "uuid_2",
+        "file_name": "sensors_guide.pdf",
+        "created_at": "2026-07-16T11:30:00Z",
+        "created_at_timestamp": 1784203800.0,
+        "doc_type": "doc"
+      }
+    },
+    {
+      "id": "uuid_1_p16",
+      "collection": "uuid_1_doc",
+      "text": "Digital sensor integration and I2C communication protocols.",
+      "distance": 0.2104,
+      "metadata": {
+        "volume": "1",
+        "physical_page": 16,
+        "pdf_page_index": 15,
+        "lesson_name": "Bus Protocols",
+        "field": "uuid_1",
+        "file_id": "uuid_1",
         "file_name": "robotics_handbook.pdf",
         "created_at": "2026-07-15T10:00:00Z",
         "created_at_timestamp": 1784112000.0,
@@ -230,10 +268,11 @@ curl -X POST "http://localhost:8080/retrieval" \
      -H "Content-Type: application/json" \
      -d '{
        "text": "microcontrollers and sensors",
-       "tag_name_uuids": ["stem_robotics"],
+       "tag_name_uuids": ["uuid_1", "uuid_2", "uuid_3", "uuid_4"],
        "type": "doc",
        "from_date": "2026-07-01",
-       "to_date": "2026-07-31"
+       "to_date": "2026-07-31",
+       "top_k": 3
      }'
 ```
 
