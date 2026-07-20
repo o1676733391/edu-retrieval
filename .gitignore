@@ -15,7 +15,6 @@ ENV/
 
 # Data & Database Caches
 data/chroma_db/
-data/postgres_data/
 data/processed_book_data.json
 data/uploads/
 *.db
