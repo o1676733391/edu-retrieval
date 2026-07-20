@@ -1,0 +1,61 @@
+services:
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: chroma_server
+    ports:
+      - "8000:8000"
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/data
+    volumes:
+      - ./data/chroma_db:/data
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: postgres_db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=stem
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - ./data/postgres_data:/var/lib/postgresql/data
+      - ./data/postgresql/stem.db:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+  math-assistant:
+    build: .
+    container_name: math_assistant_app
+    depends_on:
+      - chromadb
+      - postgres
+
+    env_file:
+      - .env
+    environment:
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - USE_VERTEXAI=${USE_VERTEXAI}
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION}
+      - GOOGLE_APPLICATION_CREDENTIALS=/root/.config/gcloud/application_default_credentials.json
+    volumes:
+      - ./data:/app/data
+      - ./data-samples:/app/data-samples
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./run_ingest.py:/app/run_ingest.py
+      - ./chat.py:/app/chat.py
+      - ${APPDATA}/gcloud:/root/.config/gcloud:ro
+
+
+    ports:
+      - "8080:8080"
+    # Enable interactive CLI chat via TTY
+    stdin_open: true
+    tty: true
+    # Run FastAPI server by default
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8080 --reload
+

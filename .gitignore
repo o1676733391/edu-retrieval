@@ -1,0 +1,28 @@
+# Environment & Secrets
+.env
+*.env
+gcp-key.json
+data/gcp-key.json
+
+# Python & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# Data & Database Caches
+data/chroma_db/
+data/postgres_data/
+data/processed_book_data.json
+data/uploads/
+*.db
+*.sqlite3
+
+# IDEs & System
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

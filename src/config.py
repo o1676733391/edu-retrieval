@@ -1,0 +1,52 @@
+import os
+from pathlib import Path
+# Load environment variables from .env file
+if Path(".env").exists():
+    from dotenv import load_dotenv
+    load_dotenv()
+
+# Base paths
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_SAMPLES_DIR = BASE_DIR / "data-samples"
+DATA_DIR = BASE_DIR / "data"
+DB_DIR = DATA_DIR / "chroma_db"
+
+# Ensure data directories exist
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+DB_DIR.mkdir(parents=True, exist_ok=True)
+
+# ChromaDB Remote server configs
+CHROMA_HOST = os.getenv("CHROMA_HOST", "")
+CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
+
+# Model configs
+EMBEDDING_MODEL_NAME = "text-embedding-004"  # Default Gemini/Vertex AI embedding model
+
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+
+# Vertex AI configs
+USE_VERTEXAI = os.getenv("USE_VERTEXAI", "false").lower() == "true"
+GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "")
+GOOGLE_CLOUD_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+
+# Dynamically set GOOGLE_APPLICATION_CREDENTIALS if gcp-key.json exists in data directory
+GCP_KEY_FILE = DATA_DIR / "gcp-key.json"
+if GCP_KEY_FILE.exists():
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(GCP_KEY_FILE)
+
+# Default collection name for Vector Database
+COLLECTION_NAME = "toan_3_curriculum"
+
+# RBAC Settings
+ROLE_STUDENT = "student"
+ROLE_TEACHER = "teacher"
+ROLE_ADMIN = "admin"
+
+ROLE_VISIBILITY_MAPPING = {
+    ROLE_STUDENT: ["public"],
+    ROLE_TEACHER: ["public", "teacher_only"],
+    ROLE_ADMIN: ["public", "teacher_only", "admin_only"]
+}
+
