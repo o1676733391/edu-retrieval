@@ -150,7 +150,7 @@ curl -X POST "http://localhost:8080/ingestion" \
 ## 3. `POST /retrieval`
 
 **Aliases:** `POST /retrieval`, `POST /api/retrieval`  
-**Description:** Performs multi-domain hybrid vector retrieval across multiple collections (`[tag_uuid_1, tag_uuid_2]`), filtering by content type (`doc` vs `qa`), date window (`from_date` -> `to_date`), and user RBAC/ACL permissions.
+**Description:** Performs multi-domain hybrid vector retrieval across multiple collections (`[tag_uuid_1, tag_uuid_2]`), filtering by content type (`doc` vs `qa`) and date window (`from_date` -> `to_date`). Aggregates candidate chunks, globally ranks them by vector similarity distance (smallest distance = highest match), and returns the top `top_k` results.
 
 ### Request Headers
 - `Content-Type: application/json`
@@ -163,7 +163,7 @@ curl -X POST "http://localhost:8080/ingestion" \
 | `type` | `string` | No | `"doc"` | Target content type (`"doc"` or `"qa"`). Routes search to `{uuid}_{type}` collections. |
 | `from_date` | `string` | No | `null` | Minimum ISO/Date string (e.g. `"2026-07-01"`). Filters via `$gte` on `created_at_timestamp`. |
 | `to_date` | `string` | No | `null` | Maximum ISO/Date string (e.g. `"2026-07-31"`). Filters via `$lte` on `created_at_timestamp`. |
-| `top_k` | `integer` | No | `5` | Maximum number of vector matches to return. |
+| `top_k` | `integer` | No | `5` | Maximum number of vector matches to return. Global ranking returns the top `top_k` highest-scoring chunks across all queried collections. |
 
 #### Example Request Body
 ```json
