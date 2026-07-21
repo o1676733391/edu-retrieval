@@ -20,7 +20,7 @@ CHROMA_HOST = os.getenv("CHROMA_HOST", "")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
 
 # Model configs
-EMBEDDING_MODEL_NAME = "text-embedding-004"  # Default Gemini/Vertex AI embedding model
+EMBEDDING_MODEL_NAME = "gemini-embedding-2"  # Default Gemini/Vertex AI embedding model
 
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
