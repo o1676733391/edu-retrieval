@@ -325,8 +325,8 @@ with tab_search:
     volume_hint = custom_vol if custom_vol != "Tự động" else None
     user_groups_list = [g.strip() for g in test_groups.split(",") if g.strip()] if test_groups else None
     
-    # Multi-Domain, QA vs Doc, and Date Filtering Settings
-    st.markdown("#### ⚙️ Cấu hình Tìm kiếm Nâng cao (Đa miền, Q&A & Ngày tháng)")
+    # Multi-Domain & QA vs Doc Settings
+    st.markdown("#### ⚙️ Cấu hình Tìm kiếm Nâng cao (Đa miền & Q&A)")
     col_t1, col_t2 = st.columns(2)
     with col_t1:
         search_type = st.selectbox(
@@ -343,12 +343,6 @@ with tab_search:
             key="search_tag_uuids",
             help="Ví dụ: math, science, robotics"
         )
-        
-    col_d1, col_d2 = st.columns(2)
-    with col_d1:
-        search_from_date = st.date_input("Từ ngày (From Date)", value=None, key="search_from_date")
-    with col_d2:
-        search_to_date = st.date_input("Đến ngày (To Date)", value=None, key="search_to_date")
 
     if st.button("Tra cứu RAG"):
         if not user_query.strip():
@@ -357,20 +351,16 @@ with tab_search:
             with st.spinner("Đang tìm kiếm trong cơ sở dữ liệu Vector... 💭"):
                 try:
                     tag_uuids_list = [t.strip().lower() for t in search_tag_uuids.split(",") if t.strip()]
-                    from_date_str = search_from_date.strftime("%Y-%m-%d") if search_from_date else None
-                    to_date_str = search_to_date.strftime("%Y-%m-%d") if search_to_date else None
                     
                     results = multi_domain_retrieval(
                         query=user_query,
                         tag_name_uuids=tag_uuids_list,
                         doc_type=search_type,
-                        from_date=from_date_str,
-                        to_date=to_date_str,
                         top_k=top_k
                     )
                     
                     if not results:
-                        st.warning("Không tìm thấy tài liệu hoặc cặp Hỏi/Đáp phù hợp trong khoảng thời gian này.")
+                        st.warning("Không tìm thấy tài liệu hoặc cặp Hỏi/Đáp phù hợp.")
                     else:
                         st.success(f"Đã trích xuất {len(results)} Chunk riêng biệt (Category: {search_type.upper()}):")
                         for idx, res in enumerate(results):

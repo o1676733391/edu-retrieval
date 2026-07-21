@@ -240,14 +240,24 @@ def multi_domain_retrieval(
             continue
         
         col_name = f"{tag_clean}_{doc_type}"
+        from src import config
+        curriculum_col = f"{config.COLLECTION_NAME}_{tag_clean}"
         target_cols_to_search = []
         
         if col_name in existing_cols:
             target_cols_to_search.append((col_name, None))
-        else:
-            # Fallback: search all _{doc_type} collections with metadata filter for tag_name_uuid or file_id
+        if curriculum_col in existing_cols and (curriculum_col, None) not in target_cols_to_search:
+            target_cols_to_search.append((curriculum_col, None))
+            
+        if not target_cols_to_search:
+            # Fallback: search all collections matching doc_type, tag_clean, or default curriculum
             for ext_c in existing_cols:
-                if ext_c.endswith(f"_{doc_type}"):
+                if (
+                    ext_c.endswith(f"_{doc_type}")
+                    or ext_c.endswith(f"_{tag_clean}")
+                    or ext_c == tag_clean
+                    or ext_c == config.COLLECTION_NAME
+                ):
                     target_cols_to_search.append((ext_c, tag_clean))
                     
         if not target_cols_to_search:
@@ -282,24 +292,24 @@ def multi_domain_retrieval(
             elif len(filters) > 1:
                 where_filter = {"$and": filters}
             
-        # Query collection
-        try:
-            query_res = collection.query(
-                query_texts=[query],
-                n_results=top_k,
-                where=where_filter if where_filter else None
-            )
-            if query_res and query_res["ids"] and query_res["ids"][0]:
-                for idx, doc_id in enumerate(query_res["ids"][0]):
-                    all_candidate_results.append({
-                        "id": doc_id,
-                        "collection": col_name,
-                        "text": query_res["documents"][0][idx],
-                        "metadata": query_res["metadatas"][0][idx],
-                        "distance": query_res["distances"][0][idx] if "distances" in query_res and query_res["distances"] else 0.0
-                    })
-        except Exception as e:
-            print(f"Error querying collection {col_name}: {e}")
+            # Query collection
+            try:
+                query_res = collection.query(
+                    query_texts=[query],
+                    n_results=top_k,
+                    where=where_filter if where_filter else None
+                )
+                if query_res and query_res["ids"] and query_res["ids"][0]:
+                    for idx, doc_id in enumerate(query_res["ids"][0]):
+                        all_candidate_results.append({
+                            "id": doc_id,
+                            "collection": c_name,
+                            "text": query_res["documents"][0][idx],
+                            "metadata": query_res["metadatas"][0][idx],
+                            "distance": query_res["distances"][0][idx] if "distances" in query_res and query_res["distances"] else 0.0
+                        })
+            except Exception as e:
+                print(f"Error querying collection {c_name}: {e}")
             
     # Sort candidates by distance (smaller distance = higher similarity)
     all_candidate_results.sort(key=lambda x: x.get("distance", 0.0))
