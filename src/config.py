@@ -39,6 +39,14 @@ if GCP_KEY_FILE.exists():
 # Default collection name for Vector Database
 COLLECTION_NAME = "toan_3_curriculum"
 
+# Backend webhook settings (report ingestion status back to rag-assistant-be)
+BE_API_BASE_URL = os.getenv("BE_API_BASE_URL", "").rstrip("/")
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
+
+# Host used to retry downloading a file_path when it points at localhost/127.0.0.1
+# and the connection is refused (container "localhost" != host machine's localhost).
+CDN_FALLBACK_HOST = os.getenv("CDN_FALLBACK_HOST", "host.docker.internal")
+
 # RBAC Settings
 ROLE_STUDENT = "student"
 ROLE_TEACHER = "teacher"

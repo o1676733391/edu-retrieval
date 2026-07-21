@@ -281,25 +281,25 @@ def multi_domain_retrieval(
                 where_filter = filters[0]
             elif len(filters) > 1:
                 where_filter = {"$and": filters}
-            
-        # Query collection
-        try:
-            query_res = collection.query(
-                query_texts=[query],
-                n_results=top_k,
-                where=where_filter if where_filter else None
-            )
-            if query_res and query_res["ids"] and query_res["ids"][0]:
-                for idx, doc_id in enumerate(query_res["ids"][0]):
-                    all_candidate_results.append({
-                        "id": doc_id,
-                        "collection": col_name,
-                        "text": query_res["documents"][0][idx],
-                        "metadata": query_res["metadatas"][0][idx],
-                        "distance": query_res["distances"][0][idx] if "distances" in query_res and query_res["distances"] else 0.0
-                    })
-        except Exception as e:
-            print(f"Error querying collection {col_name}: {e}")
+
+            # Query collection
+            try:
+                query_res = collection.query(
+                    query_texts=[query],
+                    n_results=top_k,
+                    where=where_filter if where_filter else None
+                )
+                if query_res and query_res["ids"] and query_res["ids"][0]:
+                    for idx, doc_id in enumerate(query_res["ids"][0]):
+                        all_candidate_results.append({
+                            "id": doc_id,
+                            "collection": c_name,
+                            "text": query_res["documents"][0][idx],
+                            "metadata": query_res["metadatas"][0][idx],
+                            "distance": query_res["distances"][0][idx] if "distances" in query_res and query_res["distances"] else 0.0
+                        })
+            except Exception as e:
+                print(f"Error querying collection {c_name}: {e}")
             
     # Sort candidates by distance (smaller distance = higher similarity)
     all_candidate_results.sort(key=lambda x: x.get("distance", 0.0))
