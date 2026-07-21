@@ -10,27 +10,12 @@ services:
     volumes:
       - ./data/chroma_db:/data
     restart: unless-stopped
-
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: postgres_db
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_DB=stem
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-    volumes:
-      - ./data/postgres_data:/var/lib/postgresql/data
-      - ./data/postgresql/stem.db:/docker-entrypoint-initdb.d/init.sql
-    restart: unless-stopped
-
+    
   math-assistant:
     build: .
     container_name: math_assistant_app
     depends_on:
       - chromadb
-      - postgres
 
     env_file:
       - .env
@@ -40,7 +25,7 @@ services:
       - USE_VERTEXAI=${USE_VERTEXAI}
       - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
       - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION}
-      - GOOGLE_APPLICATION_CREDENTIALS=/root/.config/gcloud/application_default_credentials.json
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/data/gcp-key.json
     volumes:
       - ./data:/app/data
       - ./data-samples:/app/data-samples
@@ -48,7 +33,6 @@ services:
       - ./tests:/app/tests
       - ./run_ingest.py:/app/run_ingest.py
       - ./chat.py:/app/chat.py
-      - ${APPDATA}/gcloud:/root/.config/gcloud:ro
 
 
     ports:

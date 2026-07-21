@@ -291,7 +291,11 @@ def multi_domain_retrieval(
                 where_filter = filters[0]
             elif len(filters) > 1:
                 where_filter = {"$and": filters}
+<<<<<<< HEAD
             
+=======
+
+>>>>>>> c704837f62263e89462625110a6d24aa1c2ada63
             # Query collection
             try:
                 query_res = collection.query(
