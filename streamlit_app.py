@@ -3,6 +3,7 @@ import os
 import sys
 import json
 import time
+import requests
 from pathlib import Path
 
 # Add project root to python path to ensure proper imports
@@ -162,10 +163,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Tabs Setup ---
-tab_chatbot, tab_search, tab_upload, tab_preview, tab_health = st.tabs([
+tab_chatbot, tab_search, tab_upload, tab_api_retrieval, tab_preview, tab_health = st.tabs([
     "💬 Trợ lý AI Chatbot",
     "🔍 Tra cứu RAG & Multi-Domain",
     "📤 Nạp tài liệu & OCR (Upload)",
+    "⚡ Kiểm thử API Retrieval & Vectors",
     "🔍 Xem trước Vector DB (Preview)",
     "🏥 Trạng thái Hệ thống (Health)"
 ])
@@ -575,7 +577,183 @@ with tab_upload:
                     st.error(f"Đã xảy ra lỗi trong quá trình nạp dữ liệu: {e}")
 
 # =====================================================================
-# TAB 3: VECTOR DB PREVIEW
+# TAB 4: API RETRIEVAL TESTER & VECTOR LIST
+# =====================================================================
+with tab_api_retrieval:
+    st.markdown("### ⚡ Kiểm thử API Retrieval & Danh sách Vector đã tìm thấy")
+    st.markdown("Kiểm thử trực tiếp API Tra cứu Vector (`POST /api/retrieval`) hoặc gọi mô hình Hybrid Search. Liệt kê danh sách các Vector trích xuất cùng điểm số chỉ số tương quan (Distance & RRF Score).")
+    
+    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+    st.markdown("#### ⚙️ Cấu hình Tham số Đầu vào (Payload Parameters)")
+    
+    col_api1, col_api2 = st.columns([3, 2])
+    with col_api1:
+        api_query_text = st.text_input(
+            "📝 Truy vấn Tìm kiếm (Query Text)",
+            value="số liền trước là gì",
+            key="api_tab_query",
+            help="Chuỗi câu hỏi hoặc từ khóa cần tra cứu vector (Ví dụ: 'số liền trước là gì', 'bài toán trang 15')"
+        )
+        api_tag_uuids = st.text_input(
+            "🏷️ Danh sách Tag / Domain UUIDs (phân tách bằng dấu phẩy)",
+            value=active_field,
+            key="api_tab_tags",
+            help="Ví dụ: math, science, stem"
+        )
+        
+    with col_api2:
+        api_doc_type = st.selectbox(
+            "📄 Loại nội dung (Type)",
+            options=["doc", "qa"],
+            format_func=lambda x: "📄 Tài liệu gốc (doc)" if x == "doc" else "❓ Bộ Q&A (qa)",
+            key="api_tab_doc_type"
+        )
+        api_top_k = st.slider("📊 Số lượng Vector cần lấy (Top K)", min_value=1, max_value=20, value=5, key="api_tab_topk")
+        
+    col_opt1, col_opt2 = st.columns(2)
+    with col_opt1:
+        exec_mode = st.radio(
+            "🛠️ Phương thức thực thi:",
+            options=["Nội bộ (Direct Python Call)", "REST API (POST http://localhost:8000/api/retrieval)"],
+            index=0,
+            horizontal=True,
+            key="api_tab_exec_mode"
+        )
+    with col_opt2:
+        show_vector_specs = st.checkbox("🔍 Hiển thị chi tiết Tọa độ Vector (Embedding Vector Specs)", value=False, key="api_tab_show_vec")
+        
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    if st.button("🚀 Chạy Kiểm thử API Retrieval", type="primary", use_container_width=True, key="btn_run_api_test"):
+        if not api_query_text.strip():
+            st.error("❌ Vui lòng nhập truy vấn trước khi chạy thử.")
+        else:
+            tags_list = [t.strip().lower() for t in api_tag_uuids.split(",") if t.strip()]
+            start_time = time.time()
+            
+            with st.spinner("Đang thực thi Retrieval & Trích xuất danh sách Vector... 💭"):
+                results = []
+                status_code_str = "200 OK"
+                err_message = None
+                
+                if "REST API" in exec_mode:
+                    try:
+                        api_payload = {
+                            "text": api_query_text,
+                            "tag_name_uuids": tags_list,
+                            "type": api_doc_type,
+                            "top_k": api_top_k
+                        }
+                        res = requests.post("http://localhost:8000/api/retrieval", json=api_payload, timeout=10)
+                        if res.status_code == 200:
+                            resp_json = res.json()
+                            results = resp_json.get("results", [])
+                        else:
+                            status_code_str = f"Error {res.status_code}"
+                            err_message = res.text
+                    except Exception as e:
+                        status_code_str = "Connection Failed"
+                        err_message = f"Không thể kết nối tới REST API Backend tại http://localhost:8000. Lỗi: {e}"
+                else:
+                    try:
+                        results = multi_domain_retrieval(
+                            query=api_query_text,
+                            tag_name_uuids=tags_list,
+                            doc_type=api_doc_type,
+                            top_k=api_top_k
+                        )
+                    except Exception as e:
+                        err_message = str(e)
+                        status_code_str = "Error"
+                        
+            elapsed_ms = (time.time() - start_time) * 1000
+            
+            if err_message:
+                st.error(f"❌ Thực thi thất bại [{status_code_str}]: {err_message}")
+            else:
+                st.success(f"⚡ Trích xuất hoàn tất trong **{elapsed_ms:.1f} ms** | Trạng thái: `{status_code_str}` | Tìm thấy **{len(results)} Vector**.")
+                
+                # Top Metrics Display
+                m_c1, m_c2, m_c3, m_c4 = st.columns(4)
+                m_c1.metric("Tổng Vector trích xuất", len(results))
+                m_c2.metric("Thời gian phản hồi", f"{elapsed_ms:.1f} ms")
+                m_c3.metric("Phương thức", "Direct Function" if "Nội bộ" in exec_mode else "REST API")
+                m_c4.metric("Kích thước Vector (Dim)", "768 float32")
+                
+                st.markdown("---")
+                st.markdown("#### 🎯 Danh sách Vector tìm thấy (List of Found Vectors)")
+                
+                if not results:
+                    st.warning("⚠️ Không tìm thấy Vector nào phù hợp trong các Collection chỉ định.")
+                else:
+                    for idx, res in enumerate(results):
+                        chunk_id = res.get("id", f"chunk_{idx}")
+                        col_name = res.get("collection", "default")
+                        dist_val = res.get("distance", 0.0)
+                        rrf_val = res.get("rrf_score", 0.0)
+                        meta = res.get("metadata", {})
+                        text_val = res.get("text", "")
+                        
+                        phys_p = meta.get('physical_page')
+                        pdf_p = meta.get('pdf_page_index')
+                        if phys_p is not None and phys_p != -1:
+                            page_str = f"Trang vật lý {phys_p}"
+                        elif pdf_p is not None and pdf_p != -1:
+                            page_str = f"Trang PDF {pdf_p + 1}"
+                        else:
+                            page_str = "N/A"
+                            
+                        lesson_str = meta.get("lesson_name", "N/A")
+                        vis_str = meta.get("visibility", "public")
+                        vol_str = meta.get("volume", "1")
+                        file_n = meta.get("file_name", "N/A")
+                        
+                        with st.container():
+                            st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+                            st.markdown(f"##### 🧩 **Vector #{idx + 1}: ID `{chunk_id}`**")
+                            
+                            vc1, vc2, vc3, vc4 = st.columns(4)
+                            with vc1:
+                                st.markdown(f"**📚 Collection:**\n`{col_name}`")
+                            with vc2:
+                                st.markdown(f"**📊 RRF Rank Score:**\n`<span style='color:#059669; font-weight:bold;'>{rrf_val:.4f}</span>`", unsafe_allow_html=True)
+                            with vc3:
+                                st.markdown(f"**📏 Distance Score:**\n`{dist_val:.4f}`")
+                            with vc4:
+                                st.markdown(f"**📍 Bài học & Vị trí:**\n`{page_str}` (Tập {vol_str})")
+                                
+                            vmeta1, vmeta2, vmeta3 = st.columns(3)
+                            with vmeta1:
+                                st.markdown(f"**📖 Bài:** `{lesson_str}`")
+                            with vmeta2:
+                                st.markdown(f"**📄 Tệp nguồn:** `{file_n}`")
+                            with vmeta3:
+                                st.markdown(f"**🔒 Quyền:** `{vis_str}`")
+                                
+                            st.text_area(
+                                "📝 Nội dung Chunk (Verbatim Text):",
+                                value=text_val,
+                                height=130,
+                                key=f"api_tab_text_{idx}"
+                            )
+                            
+                            if show_vector_specs:
+                                with st.expander("🔍 Chi tiết Embedding Vector Specs & Full Metadata"):
+                                    st.json({
+                                        "vector_id": chunk_id,
+                                        "collection": col_name,
+                                        "rrf_score": rrf_val,
+                                        "distance_score": dist_val,
+                                        "metadata_payload": meta
+                                    })
+                                    
+                            st.markdown('</div>', unsafe_allow_html=True)
+                            
+                    with st.expander("📋 Xem toàn bộ dữ liệu phản hồi JSON (Raw API Response Payload)"):
+                        st.json(results)
+
+# =====================================================================
+# TAB 5: VECTOR DB PREVIEW
 # =====================================================================
 with tab_preview:
     st.markdown("### 🔍 Xem trước các bản ghi trong Vector Database")
