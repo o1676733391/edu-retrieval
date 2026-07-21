@@ -14,6 +14,25 @@ from src.vector_store.search import book_knowledge_search, multi_domain_retrieva
 from src import config
 from src.pipeline.ingest import run_ingest
 
+def get_available_ocr_caches():
+    cache_files = list(config.DATA_DIR.glob("processed_*.json"))
+    options = []
+    for f in cache_files:
+        name = f.stem
+        if name.startswith("processed_"):
+            parts = name.split("_")
+            if len(parts) >= 3 and parts[-1] == "data":
+                field_name = parts[1]
+                file_id = "_".join(parts[2:-1]) if len(parts) > 3 else None
+                display_name = f"📚 Môn: {field_name.upper()}" + (f" | 🔑 ID Tệp: {file_id}" if file_id else " | (Sách mặc định)")
+                options.append({
+                    "path": f,
+                    "display_name": display_name,
+                    "field": field_name,
+                    "file_id": file_id
+                })
+    return options
+
 # --- Page Setup ---
 st.set_page_config(
     page_title="Hệ thống Trợ lý Học tập SGK Toán 3",
@@ -433,19 +452,7 @@ with tab_upload:
     
     col1, col2 = st.columns([2, 1])
     
-    with col1:
-        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        st.markdown("#### 1. Chọn tài liệu PDF")
-        uploaded_file = st.file_uploader(
-            "Tải lên tệp PDF tài liệu sách giáo khoa (Định dạng ảnh scan hoặc văn bản)",
-            type=["pdf"],
-            key="pdf_uploader"
-        )
-        
-        if uploaded_file is not None:
-            st.success(f"📂 Đã tải file: **{uploaded_file.name}** ({uploaded_file.size / (1024*1024):.2f} MB)")
-        st.markdown('</div>', unsafe_allow_html=True)
-        
+    # Define Column 2 first to get the step_ocr variable
     with col2:
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
         st.markdown("#### 2. Metadata & Phân quyền (RBAC)")
@@ -474,6 +481,7 @@ with tab_upload:
             help="User ID của chủ sở hữu tài liệu này."
         )
         
+        # Allowed Group
         upload_allowed_group = st.text_input(
             "Nhóm được phép truy cập (Allowed Group)",
             value="",
@@ -481,6 +489,7 @@ with tab_upload:
             help="Tên của nhóm được phép truy cập tài liệu này (ví dụ: teacher, hr)."
         )
         
+        # Allowed User
         upload_allowed_user = st.text_input(
             "Người được phép truy cập (Allowed User)",
             value="",
@@ -529,7 +538,7 @@ with tab_upload:
             help="Mô tả tóm tắt nội dung tệp."
         )
         
-        # Overwrite Mode
+        # Ingestion Mode
         upload_mode = st.selectbox(
             "Chế độ nạp dữ liệu (Ingestion Mode)",
             options=["update", "override"],
@@ -552,50 +561,98 @@ with tab_upload:
         )
         st.markdown('</div>', unsafe_allow_html=True)
         
+    # Define Column 1 (toggles based on step_ocr)
+    with col1:
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        if step_ocr:
+            st.markdown("#### 1. Chọn tài liệu PDF")
+            uploaded_file = st.file_uploader(
+                "Tải lên tệp PDF tài liệu sách giáo khoa (Định dạng ảnh scan hoặc văn bản)",
+                type=["pdf"],
+                key="pdf_uploader"
+            )
+            if uploaded_file is not None:
+                st.success(f"📂 Đã chọn file: **{uploaded_file.name}** ({uploaded_file.size / (1024*1024):.2f} MB)")
+        else:
+            st.markdown("#### 1. Chọn tệp OCR Cache đã trích xuất sẵn")
+            st.markdown("Hệ thống phát hiện các file OCR cũ đã xử lý trong thư mục `data/`:")
+            ocr_options = get_available_ocr_caches()
+            if ocr_options:
+                selected_ocr = st.selectbox(
+                    "Chọn tệp OCR cache để tiếp tục nạp vào cơ sở dữ liệu",
+                    options=ocr_options,
+                    format_func=lambda x: x["display_name"],
+                    key="ocr_cache_selector"
+                )
+                st.info(f"📂 Sử dụng file: `{selected_ocr['path'].name}`")
+            else:
+                st.warning("⚠️ Không tìm thấy tệp OCR cache nào trên ổ đĩa. Hãy bật 'Step 1: OCR' để trích xuất file PDF trước.")
+                selected_ocr = None
+        st.markdown('</div>', unsafe_allow_html=True)
+        
     # Trigger button
     if st.button("🚀 Bắt đầu Nạp dữ liệu & Chạy OCR", type="primary", use_container_width=True):
-        if uploaded_file is None:
+        if step_ocr and uploaded_file is None:
             st.error("❌ Vui lòng chọn tệp PDF trước khi bắt đầu.")
+        elif not step_ocr and selected_ocr is None:
+            st.error("❌ Không có tệp OCR cache nào để nạp. Hãy chọn tệp hoặc bật bước OCR.")
         else:
             with st.status("Đang xử lý nạp tài liệu...", expanded=True) as status:
                 try:
-                    # 1. Save uploaded file to workspace folder data/uploads
-                    uploads_dir = Path("data") / "uploads"
-                    uploads_dir.mkdir(parents=True, exist_ok=True)
+                    file_name_val = ""
+                    pdf_path_val = None
+                    field_val = ""
+                    file_id_val = ""
                     
-                    saved_path = uploads_dir / uploaded_file.name
-                    status.write(f"Đang lưu tạm tệp tin vào `{saved_path}`...")
-                    with open(saved_path, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
+                    if step_ocr:
+                        # 1. Save uploaded file to workspace folder data/uploads
+                        uploads_dir = Path("data") / "uploads"
+                        uploads_dir.mkdir(parents=True, exist_ok=True)
+                        
+                        saved_path = uploads_dir / uploaded_file.name
+                        status.write(f"Đang lưu tạm tệp tin vào `{saved_path}`...")
+                        with open(saved_path, "wb") as f:
+                            f.write(uploaded_file.getbuffer())
+                        
+                        file_name_val = uploaded_file.name
+                        pdf_path_val = str(saved_path)
+                        field_val = upload_field
+                        file_id_val = upload_field
+                    else:
+                        file_name_val = selected_ocr["file_id"] or selected_ocr["field"]
+                        pdf_path_val = None
+                        field_val = selected_ocr["field"]
+                        file_id_val = selected_ocr["file_id"]
+                        status.write(f"Đang tải tệp OCR từ cache: `{selected_ocr['path'].name}`...")
                     
                     # 2. Verify API Key exists if running OCR
                     if step_ocr and not config.GEMINI_API_KEY:
                         raise ValueError("Chưa thiết lập GEMINI_API_KEY trong tệp .env.")
                     
-                    status.write("Đang tiến hành trích xuất OCR Multimodal và nạp vào cơ sỡ dữ liệu ChromaDB...")
+                    status.write("Đang tiến hành xử lý nạp và lập chỉ mục vào cơ sỡ dữ liệu ChromaDB...")
                     # 3. Call run_ingest
                     run_ingest(
                         force_ocr=force_ocr,
-                        field=upload_field,
+                        field=field_val,
                         visibility=upload_visibility,
-                        pdf_path=str(saved_path),
+                        pdf_path=pdf_path_val,
                         volume=str(upload_volume),
                         description=upload_description if upload_description else None,
-                        file_id=upload_field,
-                        file_name=uploaded_file.name,
+                        file_id=file_id_val,
+                        file_name=file_name_val,
                         owner_id=upload_owner_id if upload_owner_id else None,
                         allowed_group=upload_allowed_group if upload_allowed_group else None,
                         allowed_user=upload_allowed_user if upload_allowed_user else None,
                         mode=upload_mode,
                         datetime_str=upload_datetime if upload_datetime else None,
                         doc_type=upload_doc_type,
-                        collection_name_override=f"{upload_field.strip().lower()}_{upload_doc_type}",
+                        collection_name_override=f"{field_val.strip().lower()}_{upload_doc_type}",
                         step_ocr=step_ocr,
                         step_ingest=step_ingest
                     )
                     
                     status.update(label="✅ Nạp dữ liệu hoàn tất!", state="complete", expanded=True)
-                    st.success(f"🎉 Đã nạp thành công sách **{uploaded_file.name}** vào môn học **'{upload_field}'** với phân quyền **'{upload_visibility}'**!")
+                    st.success(f"🎉 Đã nạp thành công tài liệu **{file_name_val}** vào môn học **'{field_val}'** với phân quyền **'{upload_visibility}'**!")
                     
                 except Exception as e:
                     status.update(label="❌ Nạp dữ liệu thất bại!", state="error", expanded=True)
