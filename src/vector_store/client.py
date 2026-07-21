@@ -25,7 +25,7 @@ class GeminiEmbeddingFunction(EmbeddingFunction):
 
     def __call__(self, input: Documents) -> Embeddings:
         embeddings = []
-        batch_size = 100
+        batch_size = 30
         for i in range(0, len(input), batch_size):
             batch = input[i:i+batch_size]
             
