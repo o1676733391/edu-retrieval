@@ -350,8 +350,8 @@ def multi_domain_retrieval(
                     bm25 = BM25Okapi(tokenized_corpus)
                     
                     query_tokens = tokenize_vietnamese(query, include_bigrams=True)
-                    # Exclude common stopwords from BM25 query to avoid noise
-                    stop_words = {"là", "gì", "thế", "nào", "cho", "hỏi", "em", "với", "các", "những"}
+                    # Exclude common stopwords and ultra-generic single terms from BM25 query to avoid noise
+                    stop_words = {"là", "gì", "thế", "nào", "cho", "hỏi", "em", "với", "các", "những", "số", "của", "và", "có", "trong", "được"}
                     filtered_query_tokens = [t for t in query_tokens if t not in stop_words and not (t.isalpha() and len(t) <= 1)]
                     
                     if filtered_query_tokens:
