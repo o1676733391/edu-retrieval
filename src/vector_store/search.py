@@ -132,14 +132,17 @@ def book_knowledge_search(
         filters.append({"volume": str(volume_hint)})
         
     if page_hint:
-        # We search a window of [page_hint - 1, page_hint, page_hint + 1] to ensure coverage
+        # Search a window of [page_hint - 1, page_hint, page_hint + 1] matching physical_page or PDF page number
         page_window = [page_hint - 1, page_hint, page_hint + 1]
-        page_window = [p for p in page_window if p > 0]
+        page_window = [p for p in page_window if p >= 0]
         
-        if len(page_window) == 1:
-            filters.append({"physical_page": page_window[0]})
-        else:
-            filters.append({"$or": [{"physical_page": p} for p in page_window]})
+        page_clauses = []
+        for p in page_window:
+            page_clauses.append({"physical_page": p})
+            page_clauses.append({"pdf_page_number": p})
+            page_clauses.append({"pdf_page_index": p - 1 if p > 0 else 0})
+            
+        filters.append({"$or": page_clauses})
             
     if len(filters) == 1:
         where_filter = filters[0]

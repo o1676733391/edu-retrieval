@@ -73,6 +73,7 @@ class PDFBookParser:
                 return {
                     "volume": self.volume,
                     "pdf_page_index": page_index,
+                    "pdf_page_number": page_index + 1,
                     "physical_page": data.get("physical_page"),
                     "lesson_name": data.get("lesson_name"),
                     "text": data.get("text", "")

@@ -253,6 +253,7 @@ def run_ingest(
             "volume": str(page["volume"]),
             "physical_page": int(phys_page) if phys_page is not None else -1,
             "pdf_page_index": int(page["pdf_page_index"]),
+            "pdf_page_number": int(page.get("pdf_page_number", page["pdf_page_index"] + 1)),
             "lesson_name": str(page["lesson_name"]) if page["lesson_name"] else "Unknown",
             "field": str(field),
             "visibility": str(visibility),
