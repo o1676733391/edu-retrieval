@@ -179,14 +179,7 @@ with tab_chatbot:
     st.markdown("### 💬 Trợ lý Học tập AI (Chatbot)")
     st.markdown(f"Hỏi đáp bài tập, giải thích kiến thức từng bước dựa trên tài liệu đã nạp (*Vai trò active: **{user_role.upper()}***).")
     
-    col_chat_hdr1, col_chat_hdr2 = st.columns([3, 1])
-    with col_chat_hdr1:
-        strict_rag_mode = st.checkbox(
-            "🔒 Chế độ RAG Nghiêm ngặt (Chỉ dùng dữ liệu SGK, từ chối nếu không có thông tin)",
-            value=True,
-            key="strict_rag_mode",
-            help="Khi bật: AI chỉ trả lời từ nội dung SGK trích xuất được. Nếu SGK không đề cập, AI sẽ thông báo không có thông tin thay vì tự dùng kiến thức chung."
-        )
+    col_chat_hdr1, col_chat_hdr2 = st.columns([4, 1])
     with col_chat_hdr2:
         if st.button("🧹 Xóa lịch sử", key="clear_chat_btn"):
             st.session_state.messages = [
@@ -254,7 +247,8 @@ with tab_chatbot:
                     joined_context = "\n\n".join(context_texts) if context_texts else "Không tìm thấy đoạn văn bản trùng khớp."
                     citation_block = "\n".join(citations) if citations else "- Tài liệu hệ thống"
                     
-                    if strict_rag_mode and (not rag_results or joined_context == "Không tìm thấy đoạn văn bản trùng khớp."):
+                    # Strict Grounded RAG Check: Guardrail if no documents found
+                    if not rag_results or joined_context == "Không tìm thấy đoạn văn bản trùng khớp.":
                         full_response = "⚠️ Rất tiếc, trong cơ sở dữ liệu SGK hiện tại không tìm thấy bài học hoặc thông tin phù hợp để trả lời câu hỏi này."
                     elif config.GEMINI_API_KEY or config.USE_VERTEXAI:
                         from google import genai
@@ -263,8 +257,8 @@ with tab_chatbot:
                         else:
                             ai_client = genai.Client(api_key=config.GEMINI_API_KEY)
                             
-                        if strict_rag_mode:
-                            prompt_template = f"""Bạn là một giáo viên tiểu học thân thiện, tận tụy và dịu dàng.
+                        # Strict Grounded Prompt: Only rely on document context, refuse if missing
+                        prompt_template = f"""Bạn là một giáo viên tiểu học thân thiện, tận tụy và dịu dàng.
 
 QUY TẮC BẮT BUỘC KHÔNG ĐƯỢC VI PHẠM (STRICT GROUNDED RAG):
 1. Bạn CHỈ ĐƯỢC PHÉP trả lời dựa hoàn toàn vào thông tin có trong phần "Ngữ cảnh tài liệu SGK" dưới đây.
@@ -280,25 +274,6 @@ Câu hỏi của người dùng:
 
 Yêu cầu định dạng câu trả lời (chỉ khi Ngữ cảnh SGK CÓ chứa câu trả lời):
 1. Trả lời thân thiện, giải thích từng bước logic toán học rõ ràng.
-2. Trả lời hoàn toàn bằng tiếng Việt.
-3. Cuối câu trả lời, in rõ phần trích dẫn nguồn theo đúng định dạng sau:
-
----
-📖 **Nguồn tham khảo:**
-{citation_block}
-"""
-                        else:
-                            prompt_template = f"""Bạn là một giáo viên tiểu học thân thiện, tận tụy và dịu dàng, hướng dẫn học sinh lớp 3 hoặc phụ huynh giải bài tập.
-Hãy sử dụng ngữ cảnh tài liệu được cung cấp dưới đây để giải thích từng bước rõ ràng, dễ hiểu.
-
-Ngữ cảnh tài liệu SGK:
-{joined_context}
-
-Câu hỏi của người dùng:
-{prompt}
-
-Yêu cầu định dạng câu trả lời:
-1. Trả lời thân thiện, giải thích từng bước logic toán học hoặc kiến thức.
 2. Trả lời hoàn toàn bằng tiếng Việt.
 3. Cuối câu trả lời, in rõ phần trích dẫn nguồn theo đúng định dạng sau:
 
