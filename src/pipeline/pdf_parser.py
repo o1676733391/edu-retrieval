@@ -7,11 +7,19 @@ import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import hashlib
+
 class PDFBookParser:
-    def __init__(self, pdf_path: Path, volume: str, api_key: str):
+    def __init__(self, pdf_path: Path, volume: str, api_key: str, checkpoint_id: str = None):
         self.pdf_path = pdf_path
         self.volume = volume
         self.api_key = api_key
+        
+        # Unique checkpoint ID
+        if checkpoint_id:
+            self.checkpoint_id = checkpoint_id
+        else:
+            self.checkpoint_id = hashlib.md5(str(pdf_path.resolve()).encode()).hexdigest()
         
         # Configure Gemini Client
         if config.USE_VERTEXAI:
@@ -100,37 +108,86 @@ class PDFBookParser:
 
     def parse_all_pages(self, max_workers: int = 2) -> list[dict]:
         """
-        Parses all pages in parallel using a ThreadPoolExecutor.
+        Parses all pages in parallel, resuming from a checkpoint if exists,
+        and saving progress incrementally to handle interruptions.
         """
         pages_count = len(self.doc)
         results = [None] * pages_count
         
-        print(f"Starting Multimodal OCR on {self.pdf_path.name} ({pages_count} pages) with {max_workers} threads...")
+        # 1. Setup Checkpoint path
+        checkpoint_dir = config.DATA_DIR / "ocr_checkpoints"
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        checkpoint_path = checkpoint_dir / f"{self.checkpoint_id}.json"
         
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_index = {
-                executor.submit(self.parse_page, i): i 
-                for i in range(pages_count)
-            }
+        # 2. Try loading existing checkpoint
+        checkpoint_data = {}
+        if checkpoint_path.exists():
+            try:
+                with open(checkpoint_path, "r", encoding="utf-8") as f:
+                    checkpoint_data = json.load(f)
+                print(f"Resuming OCR on {self.pdf_path.name} from checkpoint. Found {len(checkpoint_data)} completed pages.")
+            except Exception as e:
+                print(f"[Warning] Failed to load checkpoint: {e}")
+                
+        # Populate results with already completed pages from checkpoint
+        completed_pages = 0
+        for i in range(pages_count):
+            str_i = str(i)
+            if str_i in checkpoint_data:
+                results[i] = checkpoint_data[str_i]
+                completed_pages += 1
+                
+        # If all pages are already completed, skip the executor
+        if completed_pages < pages_count:
+            pages_to_process = [i for i in range(pages_count) if results[i] is None]
+            print(f"OCR progress: {completed_pages}/{pages_count} pages completed. Processing remaining {len(pages_to_process)} pages...")
             
-            for future in as_completed(future_to_index):
-                i = future_to_index[future]
-                try:
-                    result = future.result()
-                    results[i] = result
-                    print(f"Processed page {i+1}/{pages_count} of {self.pdf_path.name}")
-                except Exception as e:
-                    print(f"Error processing page {i} of {self.pdf_path.name}: {e}")
-                    results[i] = {
-                        "volume": self.volume,
-                        "pdf_page_index": i,
-                        "physical_page": None,
-                        "lesson_name": None,
-                        "text": ""
-                    }
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Only submit pages that are not already completed
+                future_to_index = {
+                    executor.submit(self.parse_page, i): i 
+                    for i in pages_to_process
+                }
+                
+                for future in as_completed(future_to_index):
+                    i = future_to_index[future]
+                    try:
+                        result = future.result()
+                        results[i] = result
+                        print(f"Processed page {i+1}/{pages_count} of {self.pdf_path.name}")
+                    except Exception as e:
+                        print(f"Error processing page {i} of {self.pdf_path.name}: {e}")
+                        results[i] = {
+                            "volume": self.volume,
+                            "pdf_page_index": i,
+                            "pdf_page_number": i + 1,
+                            "physical_page": None,
+                            "lesson_name": None,
+                            "text": ""
+                        }
                     
+                    # Incrementally update checkpoint data and write to file
+                    checkpoint_data[str(i)] = results[i]
+                    try:
+                        with open(checkpoint_path, "w", encoding="utf-8") as f:
+                            json.dump(checkpoint_data, f, ensure_ascii=False, indent=2)
+                    except Exception as e:
+                        print(f"[Warning] Failed to write checkpoint: {e}")
+        else:
+            print(f"All {pages_count} pages loaded successfully from checkpoint.")
+
         # Apply sequential fallback post-processing
-        return self.post_process_pages(results)
+        processed_results = self.post_process_pages(results)
+        
+        # Cleanup checkpoint file since the whole document is fully parsed and post-processed
+        if checkpoint_path.exists():
+            try:
+                checkpoint_path.unlink()
+                print(f"Successfully completed OCR. Cleaned up checkpoint: {checkpoint_path.name}")
+            except Exception as e:
+                print(f"[Warning] Failed to delete checkpoint file {checkpoint_path.name}: {e}")
+                
+        return processed_results
 
     def post_process_pages(self, pages: list[dict]) -> list[dict]:
         """

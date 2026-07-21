@@ -80,7 +80,9 @@ class TestEducationalAssistant(unittest.TestCase):
             owner_id=None,
             allowed_group=None,
             allowed_user=None,
-            mode="keep_cache"
+            mode="keep_cache",
+            step_ocr=True,
+            step_ingest=True
         )
         
         # Test future metadata and tag_name mapping
@@ -112,7 +114,9 @@ class TestEducationalAssistant(unittest.TestCase):
             owner_id="user_admin",
             allowed_group="teachers_group",
             allowed_user="user_vip",
-            mode="delete_first"
+            mode="delete_first",
+            step_ocr=True,
+            step_ingest=True
         )
 
     @unittest.mock.patch('src.api.main.book_knowledge_search')
@@ -373,7 +377,9 @@ class TestEducationalAssistant(unittest.TestCase):
             mode="override",
             datetime_str="2026-07-19T14:00:00Z",
             doc_type="doc",
-            collection_name_override="tag_science_999_doc"
+            collection_name_override="tag_science_999_doc",
+            step_ocr=True,
+            step_ingest=True
         )
 
     @unittest.mock.patch('src.api.main.multi_domain_retrieval')

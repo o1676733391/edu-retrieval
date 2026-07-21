@@ -41,6 +41,10 @@ class IngestRequest(BaseModel):
     
     # Overwrite mode: "keep_cache" or "delete_first"
     mode: Optional[str] = "keep_cache"
+    
+    # Modular execution steps
+    step_ocr: Optional[bool] = True
+    step_ingest: Optional[bool] = True
 
 
 class CreateDomainRequest(BaseModel):
@@ -57,6 +61,10 @@ class IngestionPayloadRequest(BaseModel):
     doc_type: Optional[str] = "doc"  # "doc" | "qa"
     volume: Optional[str] = "1"
     force: Optional[bool] = False
+    
+    # Modular execution steps
+    step_ocr: Optional[bool] = True
+    step_ingest: Optional[bool] = True
 
 
 class RetrievalPayloadRequest(BaseModel):
@@ -116,7 +124,9 @@ def ingest_document(req: IngestRequest):
             owner_id=req.owner_id,
             allowed_group=req.allowed_group,
             allowed_user=req.allowed_user,
-            mode=req.mode
+            mode=req.mode,
+            step_ocr=req.step_ocr,
+            step_ingest=req.step_ingest
         )
         return {
             "status": "success",
@@ -394,7 +404,9 @@ def ingestion_endpoint(req: IngestionPayloadRequest):
             mode=req.mode,
             datetime_str=req.datetime,
             doc_type=doc_type_clean,
-            collection_name_override=col_override_name
+            collection_name_override=col_override_name,
+            step_ocr=req.step_ocr,
+            step_ingest=req.step_ingest
         )
         return {
             "status": "success",

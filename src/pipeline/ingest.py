@@ -114,7 +114,9 @@ def run_ingest(
     mode: str = "keep_cache",
     datetime_str: str = None,
     doc_type: str = "doc",
-    collection_name_override: str = None
+    collection_name_override: str = None,
+    step_ocr: bool = True,
+    step_ingest: bool = True
 ):
     """
     Main ingestion script. 
@@ -122,77 +124,93 @@ def run_ingest(
     2. Save cached parsing to processed_book_data.json.
     3. Index documents into Chroma Vector Database.
     """
-    cache_file = config.DATA_DIR / f"processed_{field}_data.json"
+    cache_file = config.DATA_DIR / f"processed_{field}_data.json" if not file_id else config.DATA_DIR / f"processed_{field}_{file_id}_data.json"
     processed_pages = []
 
-    log_step("Uploading", f"file received (field={field}, visibility={visibility})", tag_name=file_id)
+    if step_ocr:
+        log_step("Uploading", f"file received (field={field}, visibility={visibility})", tag_name=file_id)
 
-    # If custom pdf_path is provided, run ingestion for that specific file
-    downloaded_temp_path = None
-    if pdf_path:
-        is_remote = pdf_path.startswith("http://") or pdf_path.startswith("https://")
-        if is_remote:
-            log_step("OCR", f"downloading remote PDF: {pdf_path} (field={field}, visibility={visibility})", tag_name=file_id)
-            downloaded_temp_path = download_to_temp(pdf_path)
-            target_path = downloaded_temp_path
-        else:
-            target_path = Path(pdf_path)
-            if not target_path.exists():
-                raise FileNotFoundError(f"PDF file not found at {pdf_path}")
-            log_step("OCR", f"running on custom PDF: {pdf_path} (field={field}, visibility={visibility})", tag_name=file_id)
-
-        # Verify API Key
-        if not config.GEMINI_API_KEY:
-            raise ValueError("Error: GEMINI_API_KEY is not configured in your environment.")
-
-        try:
-            parser = PDFBookParser(target_path, volume=str(volume), api_key=config.GEMINI_API_KEY)
-            processed_pages = parser.parse_all_pages()
-        finally:
-            if downloaded_temp_path:
-                downloaded_temp_path.unlink(missing_ok=True)
-    else:
-        # Check if cache exists for the default textbooks
-        if cache_file.exists() and not force_ocr:
-            log_step("OCR", f"cache found, loading from {cache_file}", tag_name=file_id)
-            with open(cache_file, "r", encoding="utf-8") as f:
-                processed_pages = json.load(f)
-        else:
-            log_step("OCR", f"no cache found or force_ocr=True for field '{field}'. Running Multimodal OCR pipeline...", tag_name=file_id)
+        # If custom pdf_path is provided, run ingestion for that specific file
+        downloaded_temp_path = None
+        if pdf_path:
+            is_remote = pdf_path.startswith("http://") or pdf_path.startswith("https://")
+            if is_remote:
+                log_step("OCR", f"downloading remote PDF: {pdf_path} (field={field}, visibility={visibility})", tag_name=file_id)
+                downloaded_temp_path = download_to_temp(pdf_path)
+                target_path = downloaded_temp_path
+            else:
+                target_path = Path(pdf_path)
+                if not target_path.exists():
+                    raise FileNotFoundError(f"PDF file not found at {pdf_path}")
+                log_step("OCR", f"running on custom PDF: {pdf_path} (field={field}, visibility={visibility})", tag_name=file_id)
 
             # Verify API Key
             if not config.GEMINI_API_KEY:
-                raise ValueError(
-                    "Error: GEMINI_API_KEY is not configured in your environment. "
-                    "Multimodal OCR requires a Gemini API key. Please set it in your .env file."
-                )
-                
-            # Parse Vol 1
-            vol1_path = config.DATA_SAMPLES_DIR / "toan-3-tap-1.pdf"
-            if vol1_path.exists():
-                parser1 = PDFBookParser(vol1_path, volume="1", api_key=config.GEMINI_API_KEY)
-                pages1 = parser1.parse_all_pages()
-                processed_pages.extend(pages1)
+                raise ValueError("Error: GEMINI_API_KEY is not configured in your environment.")
+
+            try:
+                # Use file_id or target_path stem as checkpoint name to handle interruptions
+                checkpoint_id = file_id if file_id else target_path.stem
+                parser = PDFBookParser(target_path, volume=str(volume), api_key=config.GEMINI_API_KEY, checkpoint_id=checkpoint_id)
+                processed_pages = parser.parse_all_pages()
+            finally:
+                if downloaded_temp_path:
+                    downloaded_temp_path.unlink(missing_ok=True)
+        else:
+            # Check if cache exists for the default textbooks
+            if cache_file.exists() and not force_ocr:
+                log_step("OCR", f"cache found, loading from {cache_file}", tag_name=file_id)
+                with open(cache_file, "r", encoding="utf-8") as f:
+                    processed_pages = json.load(f)
             else:
-                print(f"[Warning] Volume 1 not found at {vol1_path}")
-                
-            # Parse Vol 2
-            vol2_path = config.DATA_SAMPLES_DIR / "toan-3-tap-2.pdf"
-            if vol2_path.exists():
-                parser2 = PDFBookParser(vol2_path, volume="2", api_key=config.GEMINI_API_KEY)
-                pages2 = parser2.parse_all_pages()
-                processed_pages.extend(pages2)
-            else:
-                print(f"[Warning] Volume 2 not found at {vol2_path}")
-                
-            # Save to cache
-            if processed_pages:
-                print(f"Saving OCR results to cache: {cache_file}")
-                with open(cache_file, "w", encoding="utf-8") as f:
-                    json.dump(processed_pages, f, ensure_ascii=False, indent=2)
-            else:
-                print("Error: No pages parsed.")
-                return
+                log_step("OCR", f"no cache found or force_ocr=True for field '{field}'. Running Multimodal OCR pipeline...", tag_name=file_id)
+
+                # Verify API Key
+                if not config.GEMINI_API_KEY:
+                    raise ValueError(
+                        "Error: GEMINI_API_KEY is not configured in your environment. "
+                        "Multimodal OCR requires a Gemini API key. Please set it in your .env file."
+                     )
+                     
+                # Parse Vol 1
+                vol1_path = config.DATA_SAMPLES_DIR / "toan-3-tap-1.pdf"
+                if vol1_path.exists():
+                    parser1 = PDFBookParser(vol1_path, volume="1", api_key=config.GEMINI_API_KEY, checkpoint_id="toan-3-tap-1")
+                    pages1 = parser1.parse_all_pages()
+                    processed_pages.extend(pages1)
+                else:
+                    print(f"[Warning] Volume 1 not found at {vol1_path}")
+                     
+                # Parse Vol 2
+                vol2_path = config.DATA_SAMPLES_DIR / "toan-3-tap-2.pdf"
+                if vol2_path.exists():
+                    parser2 = PDFBookParser(vol2_path, volume="2", api_key=config.GEMINI_API_KEY, checkpoint_id="toan-3-tap-2")
+                    pages2 = parser2.parse_all_pages()
+                    processed_pages.extend(pages2)
+                else:
+                    print(f"[Warning] Volume 2 not found at {vol2_path}")
+                     
+                # Save to cache
+                if processed_pages:
+                    print(f"Saving OCR results to cache: {cache_file}")
+                    with open(cache_file, "w", encoding="utf-8") as f:
+                         json.dump(processed_pages, f, ensure_ascii=False, indent=2)
+                else:
+                    print("Error: No pages parsed.")
+                    return
+    else:
+        # Load from cache
+        if cache_file.exists():
+            print(f"Skipping OCR step. Loading parsed pages from cache file: {cache_file}")
+            with open(cache_file, "r", encoding="utf-8") as f:
+                processed_pages = json.load(f)
+        else:
+            raise ValueError(f"Cannot skip OCR: Cache file not found at {cache_file}. Please run with step_ocr=True first.")
+
+    # Guardrail Check for step_ingest
+    if not step_ingest:
+        print("Skipping Ingestion step (step_ingest=False). OCR processing completed successfully.")
+        return
 
     import datetime
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -222,32 +240,50 @@ def run_ingest(
     # Prepare data arrays for bulk adding
     log_step("Chunking", f"parsing document structure for {len(processed_pages)} pages", tag_name=file_id)
     ids = []
-    documents = []
-    metadatas = []
-
+    
+    # Track new items to avoid re-embedding existing chunks
+    new_ids = []
+    new_documents = []
+    new_metadatas = []
+    
+    # Generate all document IDs first
+    all_ids = []
+    page_map = {}
     for page in processed_pages:
-        # Create a unique document ID
         phys_page = page.get("physical_page")
         if file_id:
-            # Use file_id as prefix to isolate pages of different files
-            if phys_page is None:
-                doc_id = f"{file_id}_pdf{page['pdf_page_index']}"
-            else:
-                doc_id = f"{file_id}_p{phys_page}"
+            doc_id = f"{file_id}_pdf{page['pdf_page_index']}" if phys_page is None else f"{file_id}_p{phys_page}"
         else:
-            if phys_page is None:
-                doc_id = f"{field}_v{page['volume']}_pdf{page['pdf_page_index']}"
-            else:
-                doc_id = f"{field}_v{page['volume']}_p{phys_page}"
+            doc_id = f"{field}_v{page['volume']}_pdf{page['pdf_page_index']}" if phys_page is None else f"{field}_v{page['volume']}_p{phys_page}"
+        all_ids.append(doc_id)
+        page_map[doc_id] = page
+
+    # Check which IDs already exist in ChromaDB to enable resuming
+    existing_ids = set()
+    if mode != "override":
+        try:
+            existing_res = collection.get(ids=all_ids, include=[])
+            if existing_res and "ids" in existing_res:
+                existing_ids = set(existing_res["ids"])
+                if existing_ids:
+                    print(f"ChromaDB Checkpoint: Found {len(existing_ids)} chunks already indexed. Skipping their embedding phase.")
+        except Exception as e:
+            print(f"[Warning] Failed to query existing IDs from ChromaDB: {e}")
+
+    for doc_id in all_ids:
+        # If already indexed, keep ID for obsolete check, but skip re-indexing
+        if doc_id in existing_ids:
+            ids.append(doc_id)
+            continue
             
+        page = page_map[doc_id]
+        phys_page = page.get("physical_page")
+        
         # Avoid empty content indexing
         text_content = page["text"].strip() if page["text"] else ""
         if not text_content:
             text_content = f"Sách giáo khoa Toán 3 Tập {page['volume']} - Trang {phys_page or page['pdf_page_index']}: [Trang trắng hoặc không có nội dung văn bản]"
             
-        ids.append(doc_id)
-        documents.append(text_content)
-        
         # Save metadata fields including visibility and field
         meta_entry = {
             "volume": str(page["volume"]),
@@ -277,20 +313,25 @@ def run_ingest(
         if allowed_user:
             meta_entry["allowed_user"] = str(allowed_user)
             
-        metadatas.append(meta_entry)
+        ids.append(doc_id)
+        new_ids.append(doc_id)
+        new_documents.append(text_content)
+        new_metadatas.append(meta_entry)
         
-    # Chroma upsert allows replacing existing documents if we rerun
-    # Batch upsert (embedding vectors are generated automatically during upsert)
-    log_step("Embedding", f"vectorizing and upserting {len(ids)} chunks", tag_name=file_id)
-    batch_size = 100
-    for i in range(0, len(ids), batch_size):
-        end_idx = min(i + batch_size, len(ids))
-        print(f"  - Embedding batch {i} to {end_idx} of {len(ids)}...")
-        collection.upsert(
-            ids=ids[i:end_idx],
-            documents=documents[i:end_idx],
-            metadatas=metadatas[i:end_idx]
-        )
+    # Chroma upsert only new/updated documents
+    if new_ids:
+        log_step("Embedding", f"vectorizing and upserting {len(new_ids)} chunks", tag_name=file_id)
+        batch_size = 100
+        for i in range(0, len(new_ids), batch_size):
+            end_idx = min(i + batch_size, len(new_ids))
+            print(f"  - Embedding batch {i} to {end_idx} of {len(new_ids)}...")
+            collection.upsert(
+                ids=new_ids[i:end_idx],
+                documents=new_documents[i:end_idx],
+                metadatas=new_metadatas[i:end_idx]
+            )
+    else:
+        print("All chunks already fully indexed in ChromaDB. No new embeddings needed.")
         
     # Delete obsolete chunks in keep_cache mode
     if file_id and mode == "keep_cache":
