@@ -25,15 +25,43 @@ def extract_hints_from_query(query: str) -> tuple[int | None, str | None]:
 
 def tokenize_vietnamese(text: str, include_bigrams: bool = False) -> list[str]:
     """
-    Word tokenization for BM25.
-    If include_bigrams is True, also generates compound bigrams like 'liền_trước', 'góc_vuông'.
+    Vietnamese word tokenization for BM25 search.
+    Uses PyVi (ViTokenizer) for morphological Vietnamese word segmentation
+    (e.g., 'số liền trước' -> 'liền_trước').
+    Also generates n-gram bigrams for maximum recall and precision.
     """
-    words = [w.lower() for w in re.findall(r'\b\w+\b', text) if w]
-    unigrams = list(words)
-    if not include_bigrams:
-        return unigrams
-    bigrams = [f"{words[i]}_{words[i+1]}" for i in range(len(words)-1)]
-    return unigrams + bigrams
+    if not text:
+        return []
+        
+    tokens = []
+    
+    # 1. Morphological Vietnamese Segmentation via PyVi
+    try:
+        from pyvi import ViTokenizer
+        segmented_text = ViTokenizer.tokenize(text)
+        pyvi_words = [w.lower() for w in re.findall(r'\b\w+\b', segmented_text) if w]
+        tokens.extend(pyvi_words)
+    except ImportError:
+        pass
+        
+    # 2. Extract standard unigrams
+    raw_words = [w.lower() for w in re.findall(r'\b\w+\b', text) if w]
+    tokens.extend(raw_words)
+    
+    # 3. Generate bigrams if requested
+    if include_bigrams and len(raw_words) > 1:
+        bigrams = [f"{raw_words[i]}_{raw_words[i+1]}" for i in range(len(raw_words)-1)]
+        tokens.extend(bigrams)
+        
+    # Deduplicate preserving order
+    seen = set()
+    unique_tokens = []
+    for t in tokens:
+        if t not in seen:
+            seen.add(t)
+            unique_tokens.append(t)
+            
+    return unique_tokens
 
 def book_knowledge_search(
     query: str,
