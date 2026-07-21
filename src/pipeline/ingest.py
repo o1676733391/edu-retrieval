@@ -152,7 +152,39 @@ def run_ingest(
                 # Use file_id or target_path stem as checkpoint name to handle interruptions
                 checkpoint_id = file_id if file_id else target_path.stem
                 parser = PDFBookParser(target_path, volume=str(volume), api_key=config.GEMINI_API_KEY, checkpoint_id=checkpoint_id)
-                processed_pages = parser.parse_all_pages()
+                new_pages = parser.parse_all_pages()
+                
+                # Check for update/merge mode vs override mode
+                is_override = mode in ["override", "delete_first"]
+                if not is_override and cache_file.exists():
+                    try:
+                        print(f"Update mode: Loading existing cached pages from {cache_file} to merge...")
+                        with open(cache_file, "r", encoding="utf-8") as f:
+                            existing_pages = json.load(f)
+                        
+                        offset = len(existing_pages)
+                        print(f"Merging new pages with offset shifting (+{offset} pages)...")
+                        for p in new_pages:
+                            p["pdf_page_index"] += offset
+                            if "pdf_page_number" in p:
+                                p["pdf_page_number"] += offset
+                                
+                        processed_pages = existing_pages + new_pages
+                    except Exception as e:
+                        print(f"[Warning] Failed to load/merge existing cache: {e}. Falling back to overwrite.")
+                        processed_pages = new_pages
+                else:
+                    print("Override mode or no existing cache: Overwriting/creating cache file.")
+                    processed_pages = new_pages
+                
+                # Save to cache
+                if processed_pages:
+                    print(f"Saving OCR results to cache: {cache_file}")
+                    with open(cache_file, "w", encoding="utf-8") as f:
+                         json.dump(processed_pages, f, ensure_ascii=False, indent=2)
+                else:
+                    print("Error: No pages parsed.")
+                    return
             finally:
                 if downloaded_temp_path:
                     downloaded_temp_path.unlink(missing_ok=True)
@@ -252,9 +284,9 @@ def run_ingest(
     for page in processed_pages:
         phys_page = page.get("physical_page")
         if file_id:
-            doc_id = f"{file_id}_pdf{page['pdf_page_index']}" if phys_page is None else f"{file_id}_p{phys_page}"
+            doc_id = f"{file_id}_pdf{page['pdf_page_index']}" if phys_page is None else f"{file_id}_p{phys_page}_idx{page['pdf_page_index']}"
         else:
-            doc_id = f"{field}_v{page['volume']}_pdf{page['pdf_page_index']}" if phys_page is None else f"{field}_v{page['volume']}_p{phys_page}"
+            doc_id = f"{field}_v{page['volume']}_pdf{page['pdf_page_index']}" if phys_page is None else f"{field}_v{page['volume']}_p{phys_page}_idx{page['pdf_page_index']}"
         all_ids.append(doc_id)
         page_map[doc_id] = page
 
