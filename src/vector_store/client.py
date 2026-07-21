@@ -5,13 +5,14 @@ import os
 import time
 
 class GeminiEmbeddingFunction(EmbeddingFunction):
-    def __init__(self, api_key: str, model_name: str = "models/text-embedding-004"):
+    def __init__(self, api_key: str, model_name: str = "models/text-embedding-004", task_type: str = "RETRIEVAL_DOCUMENT"):
         from google import genai
         from google.genai import types
         from src import config
         
         self.model_name = model_name
         self.types = types
+        self.task_type = task_type
         
         if config.USE_VERTEXAI:
             self.client = genai.Client(
@@ -35,7 +36,7 @@ class GeminiEmbeddingFunction(EmbeddingFunction):
                         model=self.model_name,
                         contents=batch,
                         config=self.types.EmbedContentConfig(
-                            task_type="RETRIEVAL_DOCUMENT"
+                            task_type=self.task_type
                         )
                     )
                     embeddings.extend([emb.values for emb in response.embeddings])
@@ -79,12 +80,13 @@ class OpenAIEmbeddingFunction(EmbeddingFunction):
             embeddings.extend([data.embedding for data in response.data])
         return embeddings
 
-def get_embedding_function() -> EmbeddingFunction:
+def get_embedding_function(task_type: str = "RETRIEVAL_DOCUMENT") -> EmbeddingFunction:
     """
     Returns the appropriate embedding function based on available API keys.
+    task_type: "RETRIEVAL_DOCUMENT" for indexing, "RETRIEVAL_QUERY" for search queries.
     """
     if config.GEMINI_API_KEY or config.USE_VERTEXAI:
-        print("Using Gemini API for embeddings.")
+        print(f"Using Gemini API for embeddings ({task_type}).")
         model = config.EMBEDDING_MODEL_NAME
         # Ensure the model name starts with models/ ONLY if NOT using Vertex AI
         if not config.USE_VERTEXAI:
@@ -94,7 +96,7 @@ def get_embedding_function() -> EmbeddingFunction:
             # For Vertex AI, ensure there is NO "models/" prefix
             if model.startswith("models/"):
                 model = model.replace("models/", "", 1)
-        return GeminiEmbeddingFunction(api_key=config.GEMINI_API_KEY, model_name=model)
+        return GeminiEmbeddingFunction(api_key=config.GEMINI_API_KEY, model_name=model, task_type=task_type)
     elif config.OPENAI_API_KEY:
         print("Using OpenAI API for embeddings.")
         return OpenAIEmbeddingFunction(api_key=config.OPENAI_API_KEY)

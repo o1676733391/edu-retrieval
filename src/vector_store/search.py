@@ -23,12 +23,17 @@ def extract_hints_from_query(query: str) -> tuple[int | None, str | None]:
         
     return page_hint, volume_hint
 
-def tokenize_vietnamese(text: str) -> list[str]:
+def tokenize_vietnamese(text: str, include_bigrams: bool = False) -> list[str]:
     """
-    Simple word tokenization for BM25.
-    Lowers case and splits on non-alphanumeric.
+    Word tokenization for BM25.
+    If include_bigrams is True, also generates compound bigrams like 'liền_trước', 'góc_vuông'.
     """
-    return [w.lower() for w in re.findall(r'\b\w+\b', text) if w]
+    words = [w.lower() for w in re.findall(r'\b\w+\b', text) if w]
+    unigrams = list(words)
+    if not include_bigrams:
+        return unigrams
+    bigrams = [f"{words[i]}_{words[i+1]}" for i in range(len(words)-1)]
+    return unigrams + bigrams
 
 def book_knowledge_search(
     query: str,
@@ -151,10 +156,10 @@ def book_knowledge_search(
         metadatas = all_docs["metadatas"]
         ids = all_docs["ids"]
         
-        tokenized_corpus = [tokenize_vietnamese(doc) for doc in corpus]
+        tokenized_corpus = [tokenize_vietnamese(doc, include_bigrams=True) for doc in corpus]
         bm25 = BM25Okapi(tokenized_corpus)
         
-        tokenized_query = tokenize_vietnamese(query)
+        tokenized_query = tokenize_vietnamese(query, include_bigrams=True)
         scores = bm25.get_scores(tokenized_query)
         
         # Sort documents by score
@@ -226,13 +231,21 @@ def multi_domain_retrieval(
     """
     Performs retrieval across multiple tag/domain collections with type filtering ("doc" vs "qa")
     and date range filtering ("from_date" to "to_date").
+    Uses Hybrid Search (Dense Vector with RETRIEVAL_QUERY + Bigram BM25) and Reciprocal Rank Fusion.
     """
     client = get_vector_db_client()
     embedding_fn = get_embedding_function()
+    query_emb_fn = get_embedding_function(task_type="RETRIEVAL_QUERY")
     
     all_candidate_results = []
-    
     existing_cols = [c.name for c in client.list_collections()]
+    
+    # Generate query embedding vector using RETRIEVAL_QUERY task_type
+    try:
+        query_vectors = query_emb_fn([query])
+    except Exception as e:
+        print(f"[Warning] Failed to generate RETRIEVAL_QUERY embedding: {e}")
+        query_vectors = None
     
     for tag_uuid in tag_name_uuids:
         tag_clean = tag_uuid.strip().lower()
@@ -269,12 +282,9 @@ def multi_domain_retrieval(
             
             # Build metadata filter
             filters = []
-            
-            # Metadata tag constraint if searching shared collection
             if meta_tag_filter:
                 filters.append({"$or": [{"file_id": meta_tag_filter}, {"tag_name_uuid": meta_tag_filter}]})
                 
-            # Date range filters using numeric timestamps for ChromaDB
             if from_date:
                 from_ts = parse_to_epoch(from_date)
                 if from_ts > 0:
@@ -291,27 +301,98 @@ def multi_domain_retrieval(
                 where_filter = filters[0]
             elif len(filters) > 1:
                 where_filter = {"$and": filters}
-            # Query collection
+            
+            chroma_where = where_filter if where_filter else None
+            
+            # 1. Dense Search
+            dense_ids = []
+            dense_docs = {}
+            dense_metas = {}
+            dense_dists = {}
+            
             try:
-                query_res = collection.query(
-                    query_texts=[query],
-                    n_results=top_k,
-                    where=where_filter if where_filter else None
-                )
+                if query_vectors:
+                    query_res = collection.query(
+                        query_embeddings=query_vectors,
+                        n_results=top_k * 2,
+                        where=chroma_where
+                    )
+                else:
+                    query_res = collection.query(
+                        query_texts=[query],
+                        n_results=top_k * 2,
+                        where=chroma_where
+                    )
+                    
                 if query_res and query_res["ids"] and query_res["ids"][0]:
                     for idx, doc_id in enumerate(query_res["ids"][0]):
-                        all_candidate_results.append({
-                            "id": doc_id,
-                            "collection": c_name,
-                            "text": query_res["documents"][0][idx],
-                            "metadata": query_res["metadatas"][0][idx],
-                            "distance": query_res["distances"][0][idx] if "distances" in query_res and query_res["distances"] else 0.0
-                        })
+                        dense_ids.append(doc_id)
+                        dense_docs[doc_id] = query_res["documents"][0][idx]
+                        dense_metas[doc_id] = query_res["metadatas"][0][idx]
+                        dense_dists[doc_id] = query_res["distances"][0][idx] if "distances" in query_res and query_res["distances"] else 0.0
             except Exception as e:
-                print(f"Error querying collection {c_name}: {e}")
+                print(f"Error querying dense vectors for collection {c_name}: {e}")
+                
+            # 2. BM25 Search with Bigrams
+            bm25_results = []
+            try:
+                if chroma_where:
+                    all_docs = collection.get(where=chroma_where, include=["documents", "metadatas"])
+                else:
+                    all_docs = collection.get(include=["documents", "metadatas"])
+                    
+                if all_docs and all_docs["ids"]:
+                    corpus = all_docs["documents"]
+                    metadatas = all_docs["metadatas"]
+                    ids = all_docs["ids"]
+                    
+                    tokenized_corpus = [tokenize_vietnamese(doc, include_bigrams=True) for doc in corpus]
+                    bm25 = BM25Okapi(tokenized_corpus)
+                    
+                    query_tokens = tokenize_vietnamese(query, include_bigrams=True)
+                    # Exclude common stopwords from BM25 query to avoid noise
+                    stop_words = {"là", "gì", "thế", "nào", "cho", "hỏi", "em", "với", "các", "những"}
+                    filtered_query_tokens = [t for t in query_tokens if t not in stop_words and not (t.isalpha() and len(t) <= 1)]
+                    
+                    if filtered_query_tokens:
+                        scores = bm25.get_scores(filtered_query_tokens)
+                        scored_docs = list(zip(ids, corpus, metadatas, scores))
+                        scored_docs.sort(key=lambda x: x[3], reverse=True)
+                        bm25_results = scored_docs[:top_k * 2]
+            except Exception as e:
+                print(f"Error executing BM25 for collection {c_name}: {e}")
+                
+            # 3. Hybrid RRF Fusion
+            rrf_scores = {}
+            doc_details = {}
             
-    # Sort candidates by distance (smaller distance = higher similarity)
-    all_candidate_results.sort(key=lambda x: x.get("distance", 0.0))
+            # Process Dense RRF
+            for rank, doc_id in enumerate(dense_ids):
+                rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + 1.0 / (60.0 + rank + 1)
+                doc_details[doc_id] = (dense_docs[doc_id], dense_metas[doc_id], dense_dists.get(doc_id, 0.0))
+                
+            # Process BM25 RRF
+            for rank, (doc_id, text, meta, score) in enumerate(bm25_results):
+                if score > 0:
+                    rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + 1.0 / (60.0 + rank + 1)
+                    if doc_id not in doc_details:
+                        doc_details[doc_id] = (text, meta, 0.5)
+                        
+            sorted_ids = sorted(rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True)
+            
+            for doc_id in sorted_ids[:top_k]:
+                text, meta, dist = doc_details[doc_id]
+                all_candidate_results.append({
+                    "id": doc_id,
+                    "collection": c_name,
+                    "text": text,
+                    "metadata": meta,
+                    "distance": dist,
+                    "rrf_score": rrf_scores[doc_id]
+                })
+            
+    # Sort candidate results by RRF score descending
+    all_candidate_results.sort(key=lambda x: x.get("rrf_score", 0.0), reverse=True)
     return all_candidate_results[:top_k]
 
 
