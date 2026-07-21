@@ -531,10 +531,24 @@ with tab_upload:
         
         # Overwrite Mode
         upload_mode = st.selectbox(
-            "Chế độ ghi đè (Overwrite Mode)",
-            options=["update", "override", "delete_first"],
+            "Chế độ nạp dữ liệu (Ingestion Mode)",
+            options=["update", "override"],
+            format_func=lambda x: "Case 2: Nạp nối tiếp/Update (Hợp nhất Cache)" if x == "update" else "Case 1: Ghi đè/Override (Khởi tạo lại Cache & DB)",
             key="upload_mode",
-            help="Update: bổ sung dữ liệu mới. Override/Delete First: xóa bản ghi cũ cùng tag_name_uuid trước khi tải."
+            help="Update: Nối tiếp nội dung mới vào danh mục và hợp nhất cache. Override: Xóa sạch dữ liệu cũ cùng danh mục và ghi đè mới hoàn toàn."
+        )
+        
+        # Modular steps checkboxes
+        st.markdown("##### 🧩 Chọn bước chạy (Modular Ingest Steps)")
+        step_ocr = st.checkbox(
+            "Chạy trích xuất OCR PDF (Step 1: OCR)",
+            value=True,
+            help="Nếu tắt, hệ thống sẽ sử dụng cache JSON đã xử lý trước đó mà không gọi Gemini API Vision."
+        )
+        step_ingest = st.checkbox(
+            "Nạp vector và chỉ mục DB (Step 2: Ingestion/Embedding)",
+            value=True,
+            help="Nếu tắt, hệ thống chỉ lưu cache kết quả OCR mà không sinh embedding vector vào ChromaDB."
         )
         st.markdown('</div>', unsafe_allow_html=True)
         
@@ -555,7 +569,7 @@ with tab_upload:
                         f.write(uploaded_file.getbuffer())
                     
                     # 2. Verify API Key exists if running OCR
-                    if not config.GEMINI_API_KEY:
+                    if step_ocr and not config.GEMINI_API_KEY:
                         raise ValueError("Chưa thiết lập GEMINI_API_KEY trong tệp .env.")
                     
                     status.write("Đang tiến hành trích xuất OCR Multimodal và nạp vào cơ sỡ dữ liệu ChromaDB...")
@@ -575,7 +589,9 @@ with tab_upload:
                         mode=upload_mode,
                         datetime_str=upload_datetime if upload_datetime else None,
                         doc_type=upload_doc_type,
-                        collection_name_override=f"{upload_field.strip().lower()}_{upload_doc_type}"
+                        collection_name_override=f"{upload_field.strip().lower()}_{upload_doc_type}",
+                        step_ocr=step_ocr,
+                        step_ingest=step_ingest
                     )
                     
                     status.update(label="✅ Nạp dữ liệu hoàn tất!", state="complete", expanded=True)
