@@ -283,129 +283,118 @@ def condense_session_history(latest_message: str, chat_history: list = []) -> Co
 
 ---
 
-## 6. Advanced Architecture: Dual-Table Windowed Memory with Summarization
-
-To scale long-running sessions, feeding the entire raw chat history into the LLM at every turn becomes expensive, slow, and can lead to context pollution. An industry best-practice is to use a **Dual-Table sliding window memory structure** with periodic history compaction.
+## 6. Advanced Architecture: Three-Role Message Compression
 
 ### Database Design
-
-#### Table 1: `raw_chat_history` (Full UI Audit Trail)
-Stores every raw message exchanged. This table is used purely to render the chat UI for the user.
+#### Table 2: `active_session_chat` (Active Context-Aware History)
+Stores the active conversational window. It shares the same table structure as Table 1 but supports a third role: `"compact"`.
 
 | Field Name | Type | Description |
 | :--- | :--- | :--- |
 | `id` | UUID (PK) | Unique message identifier. |
 | `session_id` | String (Index) | Identifies the unique chat session. |
-| `role` | String | `'user'` or `'assistant'`. |
-| `content` | String | The raw, original message text. |
-| `created_at` | Timestamp | Order of the message. |
-
-#### Table 2: `session_memory_context` (Active Condensed Context)
-Stores the summarized history of the session. It is updated periodically (e.g., every 10 turns) by a background worker.
-
-| Field Name | Type | Description |
-| :--- | :--- | :--- |
-| `session_id` | String (PK) | Unique chat session. |
-| `summary` | String | A high-level bulleted summary of key topics and concepts discussed. |
-| `current_anchors` | JSON | Key metadata anchors resolved (e.g., `{"page": 24, "volume": 1, "topic": "science"}`). |
-| `last_compacted_at`| Timestamp | Timestamp of the last compaction run. |
+| `role` | String | `'user'`, `'assistant'`, or `'compact'`. |
+| `content` | String | The message text (raw input or compacted summary). |
+| `created_at` | Timestamp | Sequence order of active chat. |
 
 ---
 
 ### Step-by-Step Compaction Workflow
 
+For a configured threshold of $n$ message pairs (e.g., $n = 10$, meaning 20 messages):
+
 ```mermaid
 sequenceDiagram
     autonumber
-    User->>Backend: Send message 11
-    Backend->>Database: Query count of raw_chat_history for session
-    Database-->>Backend: Returns count = 10 (Threshold reached!)
-    Note over Backend: Trigger Compaction Worker
-    Backend->>LLM: Call GenerateContent (Prompt: Summarize raw_chat_history + existing Table 2 summary)
-    LLM-->>Backend: Returns new condensed summary & JSON anchors
-    Backend->>Database: Update Table 2 (session_memory_context)
-    Backend->>Database: Truncate active memory window (keep only last 3 raw messages in active pool)
-    Backend->>User: Proceed with Turn 11 using Compacted Summary + Last 3 Raw turns
+    User->>Backend: Send message 21 (Pair 11)
+    Backend->>Database: Query Table 2 count for session
+    Database-->>Backend: Returns count = 20 (Threshold reached: 2n messages!)
+    Note over Backend: Trigger Compaction Step
+    Backend->>LLM: Call GenerateContent (Send all 20 messages currently in Table 2)
+    LLM-->>Backend: Returns a single consolidated summary text
+    Backend->>Database: DELETE all 20 messages from Table 2 for session
+    Backend->>Database: INSERT 1 new message in Table 2 (role: 'compact', content: 'Tóm tắt hội thoại trước đó: ...')
+    Backend->>Database: INSERT User Message 21 into Table 2 (role: 'user')
+    Backend->>Backend: Query RAG using Standalone Query generated from (Compact + Message 21)
+    Backend->>User: Generate and return assistant response (Save response to Table 2 role: 'assistant')
 ```
-
-### Prompt for History Compaction
-When the message threshold is reached, call the LLM with this instruction to compile the summary:
-
-```markdown
-Bạn là một trợ lý tóm tắt và quản lý ngữ cảnh trò chuyện.
-Nhiệm vụ của bạn là đọc:
-1. Bản tóm tắt cũ của cuộc trò chuyện (nếu có).
-2. Lịch sử các tin nhắn hội thoại mới phát sinh trong phiên.
-
-Hãy tổng hợp và tạo ra một bản tóm tắt mới ngắn gọn (dạng danh sách gạch đầu dòng) ghi nhận:
-- Chủ đề, nội dung đang được trao đổi (ví dụ: khái niệm khoa học, bài ôn tập, từ khóa cốt lõi).
-- Các dữ kiện quan trọng về sách giáo khoa đã được xác lập (trang sách nào, tập sách nào).
-- Các câu hỏi chưa được giải quyết hoặc chủ đề người dùng đang quan tâm tiếp theo.
-
-Đồng thời trích xuất các "anchors" địa lý (Trang, Tập, Môn) dưới dạng JSON.
-
-ĐẦU RA YÊU CẦU:
-{
-  "summary": "Mô tả ngắn gọn bằng tiếng Việt...",
-  "anchors": {
-    "page": 45,
-    "volume": 2,
-    "subject": "science"
-  }
-}
-```
-
-### Compactor Concrete Example
-
-#### 1. Input to Compactor (At Turn 10)
-* **Old Summary (Table 2):** `""` (First compaction)
-* **Raw Chat History (Table 1):**
-  ```json
-  [
-    { "role": "user", "content": "Tìm giúp em bài học về các trạng thái của chất ở tập 1" },
-    { "role": "model", "content": "Bài 'Các trạng thái của chất' nằm ở trang 64 sách Khoa học Tự nhiên Tập 1 em nhé." },
-    { "role": "user", "content": "Trang đó có câu hỏi thảo luận số 1 là gì ạ?" },
-    { "role": "model", "content": "Câu hỏi 1 trang 64 yêu cầu em mô tả đặc điểm hình dạng và thể tích của nước đá, nước lỏng và hơi nước." },
-    { "role": "user", "content": "Giải giúp em phần nước đá trước" },
-    { "role": "model", "content": "Nước đá ở trạng thái rắn, có hình dạng cố định và thể tích xác định." },
-    { "role": "user", "content": "Thế còn hơi nước?" },
-    { "role": "model", "content": "Hơi nước ở trạng thái khí, không có hình dạng cố định và không có thể tích xác định (nó chiếm toàn bộ thể tích bình chứa)." }
-  ]
-  ```
-
-#### 2. Compacted Output from Compactor (Saved to Table 2)
-The LLM processes the input above and outputs this JSON, which overwrites Table 2:
-```json
-{
-  "summary": "- Học sinh đang nghiên cứu bài 'Các trạng thái của chất' trang 64 tập 1.\n- Đã giải đáp câu hỏi thảo luận 1 về nước đá (rắn - hình dạng/thể tích cố định) và hơi nước (khí - không hình dạng/thể tích cố định).\n- Ngữ cảnh hiện tại: mô tả đặc điểm hình dạng và thể tích của các trạng thái của chất.",
-  "anchors": {
-    "page": 64,
-    "volume": 1,
-    "subject": "science"
-  }
-}
-```
-
-#### 3. Next Turn Processing (Turn 11)
-* **User's new message:** `"Thế còn nước lỏng?"`
-* **Input payload sent to the Session History Condenser:**
-  * **Table 2 Context:** The `summary` and `anchors` JSON above.
-  * **Last 2 turns of Table 1:**
-    * User: `"Thế còn hơi nước?"`
-    * Model: `"Hơi nước ở trạng thái khí..."`
-  * **New Question:** `"Thế còn nước lỏng?"`
-* **Condenser Standalone Query Output:**
-  `"Đặc điểm hình dạng và thể tích của nước lỏng ở trang 64 sách giáo khoa khoa học tự nhiên tập 1"` (which is then sent to ChromaDB RAG search).
 
 ---
 
-### Ingestion & Query Condensation with Compactor
-For any subsequent question (e.g., Turn 12), the **Session History Condenser** receives:
-1. The **Active Condensed Context** from Table 2.
-2. The **Last 3 Raw turns** from Table 1.
-3. The **Latest Message**.
+### Compactor Prompt (Three-Role Context)
 
-This reduces the total prompt length from ~6,000 tokens (for 12 turns) to under **1,000 tokens**, achieving:
-* **80%+ API Cost Reduction** for long chat threads.
-* **Faster Response Times (low latency)** for the user.
-* **Higher Context Retention** (the model remembers Page 15 even at Turn 50).
+When compaction is triggered, send the message list from Table 2 to the LLM with this instruction:
+
+```markdown
+Bạn là một trợ lý tóm tắt và quản lý ngữ cảnh trò chuyện chuyên nghiệp cho hệ thống Giáo dục RAG.
+Nhiệm vụ của bạn là đọc toàn bộ lịch sử trò chuyện được gửi kèm (có thể chứa tin nhắn 'compact' trước đó ở đầu và các cặp tin nhắn 'user'/'assistant' mới tiếp nối).
+
+Hãy tổng hợp và tạo ra một bản tóm tắt mới ngắn gọn nhất dưới dạng danh sách gạch đầu dòng ghi nhận:
+- Các chủ đề và khái niệm chính sách giáo khoa đang thảo luận trong phiên.
+- Các vị trí tài liệu đã được xác lập (trang sách nào, tập sách nào).
+- Các câu hỏi chưa được giải quyết hoặc trọng tâm người dùng đang hỏi tiếp theo.
+
+Đầu ra của bạn phải là một câu tóm tắt bằng tiếng Việt rõ ràng, chuẩn ngữ pháp để chèn lại vào tin nhắn với vai trò 'compact'. Không trả lời câu hỏi của người dùng.
+```
+
+---
+
+### Compactor Concrete Example
+
+#### 1. Table 2 State before Compaction (At $n = 4$ pairs / 8 messages)
+Table 2 contains the following message list:
+```json
+[
+  { "role": "user", "content": "Tìm giúp em bài học về các trạng thái của chất ở tập 1" },
+  { "role": "assistant", "content": "Bài 'Các trạng thái của chất' nằm ở trang 64 sách Khoa học Tự nhiên Tập 1 em nhé." },
+  { "role": "user", "content": "Trang đó có câu hỏi thảo luận số 1 là gì ạ?" },
+  { "role": "assistant", "content": "Câu hỏi 1 trang 64 yêu cầu em mô tả đặc điểm hình dạng và thể tích của nước đá, nước lỏng và hơi nước." },
+  { "role": "user", "content": "Giải giúp em phần nước đá trước" },
+  { "role": "assistant", "content": "Nước đá ở trạng thái rắn, có hình dạng cố định và thể tích xác định." },
+  { "role": "user", "content": "Thế còn hơi nước?" },
+  { "role": "assistant", "content": "Hơi nước ở trạng thái khí, không có hình dạng cố định và không có thể tích xác định (nó chiếm toàn bộ thể tích bình chứa)." }
+]
+```
+
+#### 2. Compacted Output & Table 2 Cleanup
+The backend calls the Compactor API with the list above. The LLM returns a single string:
+> *"Tóm tắt hội thoại trước đó: Học sinh đang tìm hiểu bài 'Các trạng thái của chất' trang 64 tập 1. Đã giải đáp câu hỏi thảo luận 1 về nước đá (trạng thái rắn, có hình dạng/thể tích cố định) và hơi nước (trạng thái khí, không hình dạng/thể tích cố định)."*
+
+The backend executes a transaction:
+1. `DELETE FROM active_session_chat WHERE session_id = 'session_123'` (Clears all 8 messages).
+2. `INSERT INTO active_session_chat` with the single compacted message:
+   ```json
+   {
+     "session_id": "session_123",
+     "role": "compact",
+     "content": "Tóm tắt hội thoại trước đó: Học sinh đang tìm hiểu bài 'Các trạng thái của chất' trang 64 tập 1. Đã giải đáp câu hỏi thảo luận 1 về nước đá (trạng thái rắn, có hình dạng/thể tích cố định) và hơi nước (trạng thái khí, không hình dạng/thể tích cố định)."
+   }
+   ```
+
+#### 3. Subsequent Turn Processing (Turn 9 / Next User Prompt)
+* **User inputs:** `"Thế còn nước lỏng?"`
+* **Table 2 state before calling the Query Condenser:**
+  ```json
+  [
+    {
+      "role": "compact",
+      "content": "Tóm tắt hội thoại trước đó: Học sinh đang tìm hiểu bài 'Các trạng thái của chất' trang 64 tập 1. Đã giải đáp câu hỏi thảo luận 1 về nước đá (trạng thái rắn, có hình dạng/thể tích cố định) và hơi nước (trạng thái khí, không hình dạng/thể tích cố định)."
+    },
+    {
+      "role": "user",
+      "content": "Thế còn nước lỏng?"
+    }
+  ]
+  ```
+* **Condenser Standalone Query Output:**
+  `"Đặc điểm hình dạng và thể tích của nước lỏng ở trang 64 sách giáo khoa khoa học tự nhiên tập 1"` (passed directly to ChromaDB RAG search).
+
+---
+
+### Ingestion & Query Condensation Benefits
+
+By keeping Table 2 structured as a message log with a `"compact"` prefix role, we achieve:
+* **80%+ API Cost Reduction:** Keeps the active token window extremely small.
+* **Low Latency:** Fast prompt evaluation due to minimal conversational history sizes.
+* **No Custom DB Schema:** Leverages standard message storage schemas with a simple role-enum extension.
+* **Easy API Integration:** Easily mapped to standard chat completion message formats (e.g. mapping `"compact"` to a system prompt or a prefixed user/assistant message).
