@@ -151,7 +151,12 @@ npm install @google/genai
 ```javascript
 import { GoogleGenAI, Type } from '@google/genai';
 
-const ai = new GoogleGenAI({});
+// Initialize the client configured for Vertex AI
+const ai = new GoogleGenAI({
+  vertex: true,
+  project: process.env.GOOGLE_CLOUD_PROJECT,
+  location: process.env.GOOGLE_CLOUD_LOCATION
+});
 
 async function condenseSessionHistory(latestMessage, chatHistory = []) {
   const systemInstruction = `
@@ -223,6 +228,7 @@ pip install google-genai pydantic
 ```
 
 ```python
+import os
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
@@ -233,7 +239,12 @@ class CondensationOutput(BaseModel):
     context_summary: str = Field(description="Tóm tắt ngắn gọn ngữ cảnh trang/tập sách hiện tại.")
 
 def condense_session_history(latest_message: str, chat_history: list = []) -> CondensationOutput:
-    client = genai.Client()
+    # Initialize the client configured for Vertex AI
+    client = genai.Client(
+        vertexai=True,
+        project=os.environ.get("GOOGLE_CLOUD_PROJECT"),
+        location=os.environ.get("GOOGLE_CLOUD_LOCATION")
+    )
     
     system_instruction = (
         "Bạn là một trợ lý phân tích ngôn ngữ cho hệ thống Giáo dục RAG.\n"
