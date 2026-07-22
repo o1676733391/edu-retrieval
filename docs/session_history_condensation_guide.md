@@ -1,8 +1,8 @@
 # Conversational Query Condensation Guide
 
-This guide documents the technical design, system prompt, input/output structures, and code implementations for the **Session History Condenser** module. 
+This guide documents the technical design, system prompt, input/output structures, and code implementations for the **Session History Condenser** module.
 
-In a Conversational RAG (Retrieval-Augmented Generation) system, users frequently ask follow-up questions containing coreferences or elliptical phrases (e.g., *"Giải giúp mình bài đó với"*, *"Trang này có bài tập nào không?"*, *"Ví dụ khác"*). The Condenser module rewrites the chat history and the latest user prompt into a single, self-contained standalone search query that can be queried against the vector database.
+In a Conversational RAG (Retrieval-Augmented Generation) system, users frequently ask follow-up questions containing coreferences or elliptical phrases (e.g., *"Giải thích giúp mình phần đó với"*, *"Trang này có câu hỏi ôn tập nào không?"*, *"Ví dụ khác"*). The Condenser module rewrites the chat history and the latest user prompt into a single, self-contained standalone search query that can be queried against the vector database.
 
 ---
 
@@ -36,14 +36,14 @@ Nhiệm vụ của bạn là nhận vào:
 1. Lịch sử cuộc trò chuyện giữa Người dùng (User) và Trợ lý (Assistant).
 2. Câu hỏi mới nhất của Người dùng (Latest Message).
 
-Hãy phân tích và viết lại Câu hỏi mới nhất thành một câu truy vấn độc lập, rõ ràng bằng tiếng Việt (Standalone Query) dùng để tìm kiếm tài liệu trong sách giáo khoa.
+Hãy phân tích và viết lại Câu hỏi mới nhất thành một câu truy vấn độc lập, rõ ràng bằng tiếng Việt (Standalone Query) dùng để tìm kiếm tài liệu học tập trong sách giáo khoa.
 
 ### QUY TẮC PHÂN TÍCH:
-1. **Giải quyết đại từ chỉ trỏ (Coreference Resolution):** Tìm các từ thay thế như "bài đó", "bài này", "nó", "trang trên", "phần trước" trong câu hỏi mới nhất và thay thế chúng bằng thông tin thực tế từ lịch sử cuộc trò chuyện (ví dụ: "bài 3", "trang 24", "tập 1").
+1. **Giải quyết đại từ chỉ trỏ (Coreference Resolution):** Tìm các từ thay thế như "phần đó", "bài này", "nó", "trang trên", "phần trước" trong câu hỏi mới nhất và thay thế chúng bằng thông tin thực tế từ lịch sử cuộc trò chuyện (ví dụ: "câu hỏi thảo luận 3", "trang 24", "tập 1").
 2. **Bảo toàn ngữ cảnh địa lý sách (Location context):** Nếu lịch sử có đề cập đến một trang cụ thể (ví dụ: Trang 15) hoặc tập cụ thể (Tập 1 hoặc Tập 2), hãy gộp thông tin trang và tập này vào câu truy vấn độc lập để lọc chính xác.
 3. **Phân loại nhu cầu tìm kiếm (Search Intent Classify):**
-   - Đặt `needs_search = true` nếu câu hỏi hỏi về bài tập, định nghĩa, kiến thức học tập, hoặc yêu cầu giải bài tập trong sách giáo khoa.
-   - Đặt `needs_search = false` nếu câu hỏi chỉ là chào hỏi xã giao (ví dụ: "Chào bạn", "Tạm biệt"), câu hỏi phi toán học, hoặc lời cảm ơn đơn thuần (ví dụ: "Cảm ơn bạn").
+   - Đặt `needs_search = true` nếu câu hỏi hỏi về bài tập, định nghĩa, kiến thức học tập, thí nghiệm, hoặc yêu cầu giải thích nội dung trong sách giáo khoa.
+   - Đặt `needs_search = false` nếu câu hỏi chỉ là chào hỏi xã giao (ví dụ: "Chào bạn", "Tạm biệt"), câu hỏi ngoài lề không liên quan bài học, hoặc lời cảm ơn đơn thuần (ví dụ: "Cảm ơn bạn").
 4. **Không trả lời câu hỏi:** Tuyệt đối KHÔNG trả lời câu hỏi của người dùng. Bạn chỉ đang viết lại câu truy vấn tìm kiếm.
 5. **Đầu ra bắt buộc:** Trả về định dạng JSON đúng cấu trúc được mô tả bên dưới.
 ```
@@ -89,17 +89,17 @@ The output from the module must strictly follow this JSON format:
 * **Chat History:**
   ```json
   [
-    { "role": "user", "content": "Tìm cho mình bài tập về hình tam giác ở trang 45 tập 2" },
-    { "role": "model", "content": "Dưới đây là nội dung Bài 2 và Bài 3 trang 45 sách giáo khoa Toán 3 Tập 2..." }
+    { "role": "user", "content": "Tìm cho mình nội dung về quang hợp ở trang 45 tập 2" },
+    { "role": "model", "content": "Dưới đây là nội dung Câu hỏi thảo luận 2 và Câu hỏi 3 trang 45 sách giáo khoa Khoa học Tự nhiên Tập 2..." }
   ]
   ```
-* **Latest Message:** `"Giải thích cho mình bài số 2 đi"`
+* **Latest Message:** `"Giải thích cho mình câu số 2 đi"`
 * **Expected Output JSON:**
   ```json
   {
-    "standalone_query": "Giải thích chi tiết bài tập 2 về hình tam giác trang 45 sách giáo khoa Toán lớp 3 tập 2",
+    "standalone_query": "Giải thích chi tiết câu hỏi thảo luận số 2 về quang hợp trang 45 sách giáo khoa tập 2",
     "needs_search": true,
-    "context_summary": "Trang 45, Tập 2, Bài tập hình tam giác"
+    "context_summary": "Trang 45, Tập 2, Quang hợp"
   }
   ```
 
@@ -119,19 +119,19 @@ The output from the module must strictly follow this JSON format:
 * **Chat History:**
   ```json
   [
-    { "role": "user", "content": "Sách Toán tập 1 có bài nào về phép chia hết không?" },
-    { "role": "model", "content": "Có bài 'Phép chia hết và phép chia có dư' ở trang 64 Tập 1..." },
-    { "role": "user", "content": "Cho mình xem các bài luyện tập ở trang đó" },
-    { "role": "model", "content": "Các bài luyện tập trang 64 bao gồm..." }
+    { "role": "user", "content": "Sách Khoa học tập 1 có bài nào về các trạng thái của chất không?" },
+    { "role": "model", "content": "Có bài 'Các trạng thái của chất' ở trang 64 Tập 1..." },
+    { "role": "user", "content": "Cho mình xem các câu hỏi thảo luận ở trang đó" },
+    { "role": "model", "content": "Các câu hỏi thảo luận trang 64 bao gồm..." }
   ]
   ```
-* **Latest Message:** `"Giải bài 1 phần b"`
+* **Latest Message:** `"Giải câu 1 phần b"`
 * **Expected Output JSON:**
   ```json
   {
-    "standalone_query": "Giải bài tập 1 phần b trang 64 sách giáo khoa Toán lớp 3 tập 1 về phép chia hết",
+    "standalone_query": "Giải câu hỏi thảo luận 1 phần b trang 64 sách giáo khoa khoa học tự nhiên tập 1 về các trạng thái của chất",
     "needs_search": true,
-    "context_summary": "Trang 64, Tập 1, Phép chia hết"
+    "context_summary": "Trang 64, Tập 1, Trạng thái của chất"
   }
   ```
 
@@ -139,7 +139,7 @@ The output from the module must strictly follow this JSON format:
 
 ## 5. Developer Implementation
 
-Here are reference implementations for python and Node.js using the official Google GenAI SDK.
+Here are reference implementations for python and Node.js using the official Google GenAI SDK configured for **Vertex AI**.
 
 ### Node.js Implementation (`gemini-2.5-flash`)
 
@@ -307,7 +307,7 @@ Stores the summarized history of the session. It is updated periodically (e.g., 
 | :--- | :--- | :--- |
 | `session_id` | String (PK) | Unique chat session. |
 | `summary` | String | A high-level bulleted summary of key topics and concepts discussed. |
-| `current_anchors` | JSON | Key metadata anchors resolved (e.g., `{"page": 24, "volume": 1, "topic": "geometry"}`). |
+| `current_anchors` | JSON | Key metadata anchors resolved (e.g., `{"page": 24, "volume": 1, "topic": "science"}`). |
 | `last_compacted_at`| Timestamp | Timestamp of the last compaction run. |
 
 ---
@@ -338,7 +338,7 @@ Nhiệm vụ của bạn là đọc:
 2. Lịch sử các tin nhắn hội thoại mới phát sinh trong phiên.
 
 Hãy tổng hợp và tạo ra một bản tóm tắt mới ngắn gọn (dạng danh sách gạch đầu dòng) ghi nhận:
-- Chủ đề, nội dung đang được trao đổi (ví dụ: bài tập, khái niệm, câu hỏi).
+- Chủ đề, nội dung đang được trao đổi (ví dụ: khái niệm khoa học, bài ôn tập, từ khóa cốt lõi).
 - Các dữ kiện quan trọng về sách giáo khoa đã được xác lập (trang sách nào, tập sách nào).
 - Các câu hỏi chưa được giải quyết hoặc chủ đề người dùng đang quan tâm tiếp theo.
 
@@ -350,7 +350,7 @@ Hãy tổng hợp và tạo ra một bản tóm tắt mới ngắn gọn (dạng
   "anchors": {
     "page": 45,
     "volume": 2,
-    "subject": "math"
+    "subject": "science"
   }
 }
 ```
@@ -365,4 +365,3 @@ This reduces the total prompt length from ~6,000 tokens (for 12 turns) to under 
 * **80%+ API Cost Reduction** for long chat threads.
 * **Faster Response Times (low latency)** for the user.
 * **Higher Context Retention** (the model remembers Page 15 even at Turn 50).
-
