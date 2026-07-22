@@ -31,18 +31,18 @@ The model must be instructed to act as a linguistic analyzer. Its sole responsib
 
 ### System Prompt (Vietnamese)
 ```markdown
-Bạn là một trợ lý phân tích ngôn ngữ chuyên nghiệp cho hệ thống Giáo dục RAG (Toán lớp 3).
+Bạn là một trợ lý phân tích ngôn ngữ chuyên nghiệp cho hệ thống Giáo dục RAG.
 Nhiệm vụ của bạn là nhận vào:
 1. Lịch sử cuộc trò chuyện giữa Người dùng (User) và Trợ lý (Assistant).
 2. Câu hỏi mới nhất của Người dùng (Latest Message).
 
-Hãy phân tích và viết lại Câu hỏi mới nhất thành một câu truy vấn độc lập, rõ ràng bằng tiếng Việt (Standalone Query) dùng để tìm kiếm tài liệu trong Sách giáo khoa Toán 3.
+Hãy phân tích và viết lại Câu hỏi mới nhất thành một câu truy vấn độc lập, rõ ràng bằng tiếng Việt (Standalone Query) dùng để tìm kiếm tài liệu trong sách giáo khoa.
 
 ### QUY TẮC PHÂN TÍCH:
 1. **Giải quyết đại từ chỉ trỏ (Coreference Resolution):** Tìm các từ thay thế như "bài đó", "bài này", "nó", "trang trên", "phần trước" trong câu hỏi mới nhất và thay thế chúng bằng thông tin thực tế từ lịch sử cuộc trò chuyện (ví dụ: "bài 3", "trang 24", "tập 1").
 2. **Bảo toàn ngữ cảnh địa lý sách (Location context):** Nếu lịch sử có đề cập đến một trang cụ thể (ví dụ: Trang 15) hoặc tập cụ thể (Tập 1 hoặc Tập 2), hãy gộp thông tin trang và tập này vào câu truy vấn độc lập để lọc chính xác.
 3. **Phân loại nhu cầu tìm kiếm (Search Intent Classify):**
-   - Đặt `needs_search = true` nếu câu hỏi hỏi về bài tập toán, định nghĩa, kiến thức toán học, hoặc yêu cầu giải bài tập trong sách giáo khoa.
+   - Đặt `needs_search = true` nếu câu hỏi hỏi về bài tập, định nghĩa, kiến thức học tập, hoặc yêu cầu giải bài tập trong sách giáo khoa.
    - Đặt `needs_search = false` nếu câu hỏi chỉ là chào hỏi xã giao (ví dụ: "Chào bạn", "Tạm biệt"), câu hỏi phi toán học, hoặc lời cảm ơn đơn thuần (ví dụ: "Cảm ơn bạn").
 4. **Không trả lời câu hỏi:** Tuyệt đối KHÔNG trả lời câu hỏi của người dùng. Bạn chỉ đang viết lại câu truy vấn tìm kiếm.
 5. **Đầu ra bắt buộc:** Trả về định dạng JSON đúng cấu trúc được mô tả bên dưới.
@@ -155,7 +155,7 @@ const ai = new GoogleGenAI({});
 
 async function condenseSessionHistory(latestMessage, chatHistory = []) {
   const systemInstruction = `
-Bạn là một trợ lý phân tích ngôn ngữ chuyên nghiệp cho hệ thống Giáo dục RAG (Toán lớp 3).
+Bạn là một trợ lý phân tích ngôn ngữ chuyên nghiệp cho hệ thống Giáo dục RAG.
 Nhiệm vụ của bạn là nhận vào lịch sử cuộc trò chuyện và câu hỏi mới nhất của người dùng.
 Hãy viết lại câu hỏi đó thành một câu truy vấn tìm kiếm tiếng Việt độc lập (Standalone Query) chứa đầy đủ ngữ cảnh trang sách, chương, tập được nhắc tới trong lịch sử.
 
@@ -189,7 +189,7 @@ ${latestMessage}
             },
             needs_search: { 
               type: Type.BOOLEAN, 
-              description: 'True nếu câu hỏi cần truy vấn DB toán học; False nếu là lời chào xã giao.' 
+              description: 'True nếu câu hỏi cần truy vấn DB; False nếu là lời chào xã giao.' 
             },
             context_summary: { 
               type: Type.STRING, 
@@ -236,7 +236,7 @@ def condense_session_history(latest_message: str, chat_history: list = []) -> Co
     client = genai.Client()
     
     system_instruction = (
-        "Bạn là một trợ lý phân tích ngôn ngữ cho hệ thống RAG Toán lớp 3.\n"
+        "Bạn là một trợ lý phân tích ngôn ngữ cho hệ thống Giáo dục RAG.\n"
         "Nhận vào lịch sử chat và câu hỏi mới nhất, viết lại câu hỏi thành một câu truy vấn tìm kiếm tiếng Việt "
         "độc lập chứa đầy đủ ngữ cảnh địa lý trang sách từ lịch sử. Không trả lời câu hỏi."
     )
@@ -327,7 +327,7 @@ Nhiệm vụ của bạn là đọc:
 2. Lịch sử các tin nhắn hội thoại mới phát sinh trong phiên.
 
 Hãy tổng hợp và tạo ra một bản tóm tắt mới ngắn gọn (dạng danh sách gạch đầu dòng) ghi nhận:
-- Chủ đề toán học đang được trao đổi (ví dụ: phép cộng có nhớ, hình tròn, tìm số liền trước).
+- Chủ đề, nội dung đang được trao đổi (ví dụ: bài tập, khái niệm, câu hỏi).
 - Các dữ kiện quan trọng về sách giáo khoa đã được xác lập (trang sách nào, tập sách nào).
 - Các câu hỏi chưa được giải quyết hoặc chủ đề người dùng đang quan tâm tiếp theo.
 
