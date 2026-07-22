@@ -398,3 +398,194 @@ By keeping Table 2 structured as a message log with a `"compact"` prefix role, w
 * **Low Latency:** Fast prompt evaluation due to minimal conversational history sizes.
 * **No Custom DB Schema:** Leverages standard message storage schemas with a simple role-enum extension.
 * **Easy API Integration:** Easily mapped to standard chat completion message formats (e.g. mapping `"compact"` to a system prompt or a prefixed user/assistant message).
+
+---
+
+## 7. PostgreSQL & Node.js Database Implementation
+
+This section provides production-ready database schemas for PostgreSQL and execution scripts for Node.js (using the standard `pg` pool driver) to manage this sliding window memory and compaction workflow.
+
+### 1. PostgreSQL Schema (DDL)
+
+Run these DDL scripts to initialize the tables in your PostgreSQL database:
+
+```sql
+-- Enable UUID extension if not already enabled
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Table 1: Raw Conversation Audit Trail
+CREATE TABLE raw_chat_history (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL CHECK (role IN ('user', 'assistant')),
+    content TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for fast session history lookback lookup
+CREATE INDEX idx_raw_chat_session ON raw_chat_history(session_id);
+CREATE INDEX idx_raw_chat_created ON raw_chat_history(created_at);
+
+
+-- Table 2: Active Chat Memory Window (with Compaction support)
+CREATE TABLE active_session_chat (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL CHECK (role IN ('user', 'assistant', 'compact')),
+    content TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for session active window retrieval
+CREATE INDEX idx_active_chat_session ON active_session_chat(session_id);
+CREATE INDEX idx_active_chat_created ON active_session_chat(created_at ASC);
+```
+
+---
+
+### 2. Node.js Database Client Code
+
+Below is the JavaScript logic using the `pg` client pool to write to both tables, verify threshold counts, invoke compaction via the Gemini API, and perform the table swap transaction.
+
+```javascript
+import pg from 'pg';
+import { GoogleGenAI } from '@google/genai';
+
+const { Pool } = pg;
+const dbPool = new Pool({
+  connectionString: process.env.DATABASE_URL // e.g., postgresql://user:pass@localhost:5432/dbname
+});
+
+const ai = new GoogleGenAI({
+  vertex: true,
+  project: process.env.GOOGLE_CLOUD_PROJECT,
+  location: process.env.GOOGLE_CLOUD_LOCATION
+});
+
+/**
+ * Inserts a new user or assistant message and triggers history compaction if the threshold is met.
+ * @param {string} sessionId The active session UUID
+ * @param {'user' | 'assistant'} role The message sender role
+ * @param {string} content The message text
+ * @param {number} nThreshold The message pair threshold (e.g. 10 pairs = 20 messages)
+ */
+export async function addChatMessageAndHandleCompaction(sessionId, role, content, nThreshold = 10) {
+  const messageLimit = nThreshold * 2; // Convert pairs to message count
+  const client = await dbPool.connect();
+
+  try {
+    // Start Transaction
+    await client.query('BEGIN');
+
+    // 1. Insert message into Table 1 (Full History)
+    const insertRawQuery = `
+      INSERT INTO raw_chat_history (session_id, role, content)
+      VALUES ($1, $2, $3);
+    `;
+    await client.query(insertRawQuery, [sessionId, role, content]);
+
+    // 2. Insert message into Table 2 (Active Memory)
+    const insertActiveQuery = `
+      INSERT INTO active_session_chat (session_id, role, content)
+      VALUES ($1, $2, $3);
+    `;
+    await client.query(insertActiveQuery, [sessionId, role, content]);
+
+    // 3. Count messages in Table 2 for this session
+    const countQuery = `
+      SELECT COUNT(*) FROM active_session_chat WHERE session_id = $1;
+    `;
+    const countRes = await client.query(countQuery, [sessionId]);
+    const activeCount = parseInt(countRes.rows[0].count, 10);
+
+    // If threshold is reached, execute compaction
+    if (activeCount >= messageLimit) {
+      console.log(`[Memory Manager] Compaction threshold reached (${activeCount} messages). Compacting...`);
+
+      // 4. Retrieve all current active messages for compaction
+      const selectActiveQuery = `
+        SELECT role, content FROM active_session_chat 
+        WHERE session_id = $1 
+        ORDER BY created_at ASC;
+      `;
+      const activeMessagesRes = await client.query(selectActiveQuery, [sessionId]);
+      const messageList = activeMessagesRes.rows;
+
+      // 5. Call LLM to Compact the message list
+      const compactedText = await runHistoryCompactor(messageList);
+
+      // 6. Delete all active messages for this session
+      const deleteActiveQuery = `
+        DELETE FROM active_session_chat WHERE session_id = $1;
+      `;
+      await client.query(deleteActiveQuery, [sessionId]);
+
+      // 7. Insert the single new 'compact' message
+      const insertCompactedQuery = `
+        INSERT INTO active_session_chat (session_id, role, content)
+        VALUES ($1, 'compact', $2);
+      `;
+      await client.query(insertCompactedQuery, [sessionId, compactedText]);
+    }
+
+    // Commit Transaction
+    await client.query('COMMIT');
+    console.log(`[Memory Manager] Message saved successfully. Active count: ${activeCount}`);
+  } catch (error) {
+    // Rollback on failure
+    await client.query('ROLLBACK');
+    console.error('[Memory Manager] Transaction error, rolling back:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Helper to call Gemini/Vertex AI to generate the summary text
+ */
+async function runHistoryCompactor(messages) {
+  const systemInstruction = `
+Bạn là một trợ lý tóm tắt và quản lý ngữ cảnh trò chuyện chuyên nghiệp cho hệ thống Giáo dục RAG.
+Nhiệm vụ của bạn là đọc toàn bộ lịch sử trò chuyện được gửi kèm (chứa tin nhắn 'compact' trước đó ở đầu và các cặp tin nhắn 'user'/'assistant' mới).
+
+Hãy tổng hợp và tạo ra một bản tóm tắt mới ngắn gọn dưới dạng danh sách gạch đầu dòng ghi nhận:
+- Các chủ đề cốt lõi đang thảo luận trong phiên.
+- Các vị trí tài liệu học tập đã được nhắc tới (trang sách nào, tập sách nào).
+- Các câu hỏi chưa được giải quyết hoặc trọng tâm người dùng đang quan tâm tiếp theo.
+
+Đầu ra phải là một câu tóm tắt bằng tiếng Việt rõ ràng để chèn vào tin nhắn với vai trò 'compact'. Không tự trả lời câu hỏi.
+  `.trim();
+
+  const formattedPrompt = messages
+    .map(msg => `- ${msg.role.toUpperCase()}: ${msg.content}`)
+    .join('\n');
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: formattedPrompt,
+    config: {
+      systemInstruction: systemInstruction,
+      temperature: 0.2
+    }
+  });
+
+  return `Tóm tắt hội thoại trước đó: ${response.text.trim()}`;
+}
+
+/**
+ * Retrieves the active messages to build prompts for the Query Condenser
+ * @param {string} sessionId 
+ * @returns {Promise<Array<{role: string, content: string}>>}
+ */
+export async function prepareActiveSessionPrompt(sessionId) {
+  const selectQuery = `
+    SELECT role, content FROM active_session_chat
+    WHERE session_id = $1
+    ORDER BY created_at ASC;
+  `;
+  const res = await dbPool.query(selectQuery, [sessionId]);
+  return res.rows;
+}
+```
+
