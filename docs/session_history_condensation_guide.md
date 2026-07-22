@@ -269,3 +269,89 @@ def condense_session_history(latest_message: str, chat_history: list = []) -> Co
             context_summary="Fallback"
         )
 ```
+
+---
+
+## 6. Advanced Architecture: Dual-Table Windowed Memory with Summarization
+
+To scale long-running sessions, feeding the entire raw chat history into the LLM at every turn becomes expensive, slow, and can lead to context pollution. An industry best-practice is to use a **Dual-Table sliding window memory structure** with periodic history compaction.
+
+### Database Design
+
+#### Table 1: `raw_chat_history` (Full UI Audit Trail)
+Stores every raw message exchanged. This table is used purely to render the chat UI for the user.
+
+| Field Name | Type | Description |
+| :--- | :--- | :--- |
+| `id` | UUID (PK) | Unique message identifier. |
+| `session_id` | String (Index) | Identifies the unique chat session. |
+| `role` | String | `'user'` or `'assistant'`. |
+| `content` | String | The raw, original message text. |
+| `created_at` | Timestamp | Order of the message. |
+
+#### Table 2: `session_memory_context` (Active Condensed Context)
+Stores the summarized history of the session. It is updated periodically (e.g., every 10 turns) by a background worker.
+
+| Field Name | Type | Description |
+| :--- | :--- | :--- |
+| `session_id` | String (PK) | Unique chat session. |
+| `summary` | String | A high-level bulleted summary of key topics and concepts discussed. |
+| `current_anchors` | JSON | Key metadata anchors resolved (e.g., `{"page": 24, "volume": 1, "topic": "geometry"}`). |
+| `last_compacted_at`| Timestamp | Timestamp of the last compaction run. |
+
+---
+
+### Step-by-Step Compaction Workflow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    User->>Backend: Send message 11
+    Backend->>Database: Query count of raw_chat_history for session
+    Database-->>Backend: Returns count = 10 (Threshold reached!)
+    Note over Backend: Trigger Compaction Worker
+    Backend->>LLM: Call GenerateContent (Prompt: Summarize raw_chat_history + existing Table 2 summary)
+    LLM-->>Backend: Returns new condensed summary & JSON anchors
+    Backend->>Database: Update Table 2 (session_memory_context)
+    Backend->>Database: Truncate active memory window (keep only last 3 raw messages in active pool)
+    Backend->>User: Proceed with Turn 11 using Compacted Summary + Last 3 Raw turns
+```
+
+### Prompt for History Compaction
+When the message threshold is reached, call the LLM with this instruction to compile the summary:
+
+```markdown
+Bạn là một trợ lý tóm tắt và quản lý ngữ cảnh trò chuyện.
+Nhiệm vụ của bạn là đọc:
+1. Bản tóm tắt cũ của cuộc trò chuyện (nếu có).
+2. Lịch sử các tin nhắn hội thoại mới phát sinh trong phiên.
+
+Hãy tổng hợp và tạo ra một bản tóm tắt mới ngắn gọn (dạng danh sách gạch đầu dòng) ghi nhận:
+- Chủ đề toán học đang được trao đổi (ví dụ: phép cộng có nhớ, hình tròn, tìm số liền trước).
+- Các dữ kiện quan trọng về sách giáo khoa đã được xác lập (trang sách nào, tập sách nào).
+- Các câu hỏi chưa được giải quyết hoặc chủ đề người dùng đang quan tâm tiếp theo.
+
+Đồng thời trích xuất các "anchors" địa lý (Trang, Tập, Môn) dưới dạng JSON.
+
+ĐẦU RA YÊU CẦU:
+{
+  "summary": "Mô tả ngắn gọn bằng tiếng Việt...",
+  "anchors": {
+    "page": 45,
+    "volume": 2,
+    "subject": "math"
+  }
+}
+```
+
+### Ingestion & Query Condensation with Compactor
+For any subsequent question (e.g., Turn 12), the **Session History Condenser** receives:
+1. The **Active Condensed Context** from Table 2.
+2. The **Last 3 Raw turns** from Table 1.
+3. The **Latest Message**.
+
+This reduces the total prompt length from ~6,000 tokens (for 12 turns) to under **1,000 tokens**, achieving:
+* **80%+ API Cost Reduction** for long chat threads.
+* **Faster Response Times (low latency)** for the user.
+* **Higher Context Retention** (the model remembers Page 15 even at Turn 50).
+
