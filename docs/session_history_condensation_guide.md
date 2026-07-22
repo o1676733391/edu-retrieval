@@ -355,6 +355,50 @@ Hãy tổng hợp và tạo ra một bản tóm tắt mới ngắn gọn (dạng
 }
 ```
 
+### Compactor Concrete Example
+
+#### 1. Input to Compactor (At Turn 10)
+* **Old Summary (Table 2):** `""` (First compaction)
+* **Raw Chat History (Table 1):**
+  ```json
+  [
+    { "role": "user", "content": "Tìm giúp em bài học về các trạng thái của chất ở tập 1" },
+    { "role": "model", "content": "Bài 'Các trạng thái của chất' nằm ở trang 64 sách Khoa học Tự nhiên Tập 1 em nhé." },
+    { "role": "user", "content": "Trang đó có câu hỏi thảo luận số 1 là gì ạ?" },
+    { "role": "model", "content": "Câu hỏi 1 trang 64 yêu cầu em mô tả đặc điểm hình dạng và thể tích của nước đá, nước lỏng và hơi nước." },
+    { "role": "user", "content": "Giải giúp em phần nước đá trước" },
+    { "role": "model", "content": "Nước đá ở trạng thái rắn, có hình dạng cố định và thể tích xác định." },
+    { "role": "user", "content": "Thế còn hơi nước?" },
+    { "role": "model", "content": "Hơi nước ở trạng thái khí, không có hình dạng cố định và không có thể tích xác định (nó chiếm toàn bộ thể tích bình chứa)." }
+  ]
+  ```
+
+#### 2. Compacted Output from Compactor (Saved to Table 2)
+The LLM processes the input above and outputs this JSON, which overwrites Table 2:
+```json
+{
+  "summary": "- Học sinh đang nghiên cứu bài 'Các trạng thái của chất' trang 64 tập 1.\n- Đã giải đáp câu hỏi thảo luận 1 về nước đá (rắn - hình dạng/thể tích cố định) và hơi nước (khí - không hình dạng/thể tích cố định).\n- Ngữ cảnh hiện tại: mô tả đặc điểm hình dạng và thể tích của các trạng thái của chất.",
+  "anchors": {
+    "page": 64,
+    "volume": 1,
+    "subject": "science"
+  }
+}
+```
+
+#### 3. Next Turn Processing (Turn 11)
+* **User's new message:** `"Thế còn nước lỏng?"`
+* **Input payload sent to the Session History Condenser:**
+  * **Table 2 Context:** The `summary` and `anchors` JSON above.
+  * **Last 2 turns of Table 1:**
+    * User: `"Thế còn hơi nước?"`
+    * Model: `"Hơi nước ở trạng thái khí..."`
+  * **New Question:** `"Thế còn nước lỏng?"`
+* **Condenser Standalone Query Output:**
+  `"Đặc điểm hình dạng và thể tích của nước lỏng ở trang 64 sách giáo khoa khoa học tự nhiên tập 1"` (which is then sent to ChromaDB RAG search).
+
+---
+
 ### Ingestion & Query Condensation with Compactor
 For any subsequent question (e.g., Turn 12), the **Session History Condenser** receives:
 1. The **Active Condensed Context** from Table 2.
