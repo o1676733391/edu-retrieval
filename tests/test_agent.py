@@ -82,7 +82,9 @@ class TestEducationalAssistant(unittest.TestCase):
             allowed_user=None,
             mode="keep_cache",
             step_ocr=True,
-            step_ingest=True
+            step_ingest=True,
+            datetime_str=None,
+            collection_name_override=None
         )
         
         # Test future metadata and tag_name mapping
@@ -116,7 +118,9 @@ class TestEducationalAssistant(unittest.TestCase):
             allowed_user="user_vip",
             mode="delete_first",
             step_ocr=True,
-            step_ingest=True
+            step_ingest=True,
+            datetime_str=None,
+            collection_name_override=None
         )
 
     @unittest.mock.patch('src.api.main.book_knowledge_search')

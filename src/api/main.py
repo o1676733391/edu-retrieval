@@ -59,6 +59,10 @@ class IngestRequest(BaseModel):
     step_ocr: Optional[bool] = True
     step_ingest: Optional[bool] = True
 
+    # Backend compatibility fields
+    datetime_str: Optional[str] = None
+    collection_name_override: Optional[str] = None
+
 
 class CreateDomainRequest(BaseModel):
     domain_name: str
@@ -139,7 +143,9 @@ def ingest_document(req: IngestRequest):
             allowed_user=req.allowed_user,
             mode=req.mode,
             step_ocr=req.step_ocr,
-            step_ingest=req.step_ingest
+            step_ingest=req.step_ingest,
+            datetime_str=req.datetime_str,
+            collection_name_override=req.collection_name_override
         )
         return {
             "status": "success",

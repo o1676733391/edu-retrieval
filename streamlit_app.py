@@ -12,7 +12,6 @@ sys.path.append(str(Path(__file__).parent))
 from src.vector_store.client import get_vector_db_client, get_embedding_function, get_or_create_collection
 from src.vector_store.search import book_knowledge_search, multi_domain_retrieval
 from src import config
-from src.pipeline.ingest import run_ingest
 
 def get_available_ocr_caches():
     cache_files = list(config.DATA_DIR.glob("processed_*.json"))
@@ -838,27 +837,36 @@ with tab_upload:
                     if step_ocr and not config.GEMINI_API_KEY:
                         raise ValueError("Chưa thiết lập GEMINI_API_KEY trong tệp .env.")
                     
-                    status.write("Đang tiến hành xử lý nạp và lập chỉ mục vào cơ sỡ dữ liệu ChromaDB...")
-                    # 3. Call run_ingest
-                    run_ingest(
-                        force_ocr=force_ocr,
-                        field=field_val,
-                        visibility=upload_visibility,
-                        pdf_path=pdf_path_val,
-                        volume=str(upload_volume),
-                        description=upload_description if upload_description else None,
-                        file_id=file_id_val,
-                        file_name=file_name_val,
-                        owner_id=upload_owner_id if upload_owner_id else None,
-                        allowed_group=upload_allowed_group if upload_allowed_group else None,
-                        allowed_user=upload_allowed_user if upload_allowed_user else None,
-                        mode=upload_mode,
-                        datetime_str=upload_datetime if upload_datetime else None,
-                        doc_type=upload_doc_type,
-                        collection_name_override=f"{field_val.strip().lower()}_{upload_doc_type}",
-                        step_ocr=step_ocr,
-                        step_ingest=step_ingest
-                    )
+                    status.write("Đang tiến hành gửi yêu cầu nạp tài liệu tới FastAPI Backend (Port 8080)...")
+                    
+                    backend_ingest_url = "http://localhost:8080/api/ingest"
+                    payload = {
+                        "force": force_ocr,
+                        "field": field_val,
+                        "visibility": upload_visibility,
+                        "file_path": pdf_path_val,
+                        "volume": str(upload_volume),
+                        "description": upload_description if upload_description else None,
+                        "file_id": file_id_val,
+                        "file_name": file_name_val,
+                        "owner_id": upload_owner_id if upload_owner_id else None,
+                        "allowed_group": upload_allowed_group if upload_allowed_group else None,
+                        "allowed_user": upload_allowed_user if upload_allowed_user else None,
+                        "mode": upload_mode,
+                        "datetime_str": upload_datetime if upload_datetime else None,
+                        "doc_type": upload_doc_type,
+                        "collection_name_override": f"{field_val.strip().lower()}_{upload_doc_type}",
+                        "step_ocr": step_ocr,
+                        "step_ingest": step_ingest
+                    }
+                    
+                    res = requests.post(backend_ingest_url, json=payload, timeout=900)
+                    if res.status_code != 200:
+                        try:
+                            err_detail = res.json().get("detail", res.text)
+                        except Exception:
+                            err_detail = res.text
+                        raise ValueError(f"Lỗi từ FastAPI Backend: {err_detail}")
                     
                     status.update(label="✅ Nạp dữ liệu hoàn tất!", state="complete", expanded=True)
                     st.success(f"🎉 Đã nạp thành công tài liệu **{file_name_val}** vào môn học **'{field_val}'** với phân quyền **'{upload_visibility}'**!")
