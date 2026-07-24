@@ -126,11 +126,17 @@ class PDFBookParser:
                 
                 # Parse JSON response
                 data = json.loads(response.text)
+                physical_page = data.get("physical_page")
+                if physical_page is not None:
+                    try:
+                        physical_page = int(physical_page)
+                    except (ValueError, TypeError):
+                        physical_page = None
                 parsed_result = {
                     "volume": self.volume,
                     "pdf_page_index": page_index,
                     "pdf_page_number": page_index + 1,
-                    "physical_page": data.get("physical_page"),
+                    "physical_page": physical_page,
                     "lesson_name": data.get("lesson_name"),
                     "text": data.get("text", "")
                 }
@@ -231,11 +237,17 @@ class PDFBookParser:
                 parsed_results = []
                 for k, item in enumerate(results):
                     idx = batch[k]
+                    physical_page = item.get("physical_page")
+                    if physical_page is not None:
+                        try:
+                            physical_page = int(physical_page)
+                        except (ValueError, TypeError):
+                            physical_page = None
                     parsed_results.append({
                         "volume": self.volume,
                         "pdf_page_index": idx,
                         "pdf_page_number": idx + 1,
-                        "physical_page": item.get("physical_page"),
+                        "physical_page": physical_page,
                         "lesson_name": item.get("lesson_name"),
                         "text": item.get("text", "")
                     })
