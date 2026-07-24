@@ -823,7 +823,7 @@ with tab_upload:
                             f.write(uploaded_file.getbuffer())
                         
                         file_name_val = uploaded_file.name
-                        pdf_path_val = str(saved_path)
+                        pdf_path_val = saved_path.as_posix()
                         field_val = upload_field
                         file_id_val = upload_field
                     else:

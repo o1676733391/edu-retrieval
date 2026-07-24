@@ -129,11 +129,12 @@ def ingest_document(req: IngestRequest):
     """
     try:
         target_field = req.tag_name if req.tag_name else req.field
+        normalized_path = req.file_path.replace("\\", "/") if req.file_path else None
         run_ingest(
             force_ocr=req.force,
             field=target_field,
             visibility=req.visibility,
-            pdf_path=req.file_path,
+            pdf_path=normalized_path,
             volume=req.volume,
             description=req.description,
             file_id=req.file_id,
