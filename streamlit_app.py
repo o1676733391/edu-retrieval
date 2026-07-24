@@ -1378,17 +1378,6 @@ with tab_live_test:
             value="http://localhost:5678/webhook/COEDNaQ6fu6k1xeE/webhook/rag-math-assistant",
             key="lt_n8n_url"
         )
-        if use_overrides:
-            lt_auth_token = st.text_input(
-                "🔑 Admin Bearer Token / API Key", 
-                value="secret-admin-token",
-                type="password",
-                key="lt_auth_token",
-                help="Bearer token hoặc API key để xác thực với Webhook bảo mật."
-            )
-        else:
-            st.info("ℹ️ Chế độ truy vấn thường: Không yêu cầu Token bảo mật.")
-            lt_auth_token = ""
     with col_lt_cfg2:
         lt_profile = st.text_input("📁 prompt_profile", value="default", key="lt_profile")
         lt_version_str = st.text_input("🔢 prompt_version (Tùy chọn, để trống = active)", value="", key="lt_version")
@@ -1444,10 +1433,6 @@ with tab_live_test:
                     headers = {
                         "Content-Type": "application/json"
                     }
-                    if lt_auth_token.strip():
-                        headers["Authorization"] = f"Bearer {lt_auth_token.strip()}"
-                        headers["X-API-Key"] = lt_auth_token.strip()
-                        
                     res = requests.post(n8n_url_lt, json=payload, headers=headers, timeout=120)
                     elapsed = time.time() - start_t
                     

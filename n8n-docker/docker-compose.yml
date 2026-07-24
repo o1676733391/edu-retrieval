@@ -11,8 +11,6 @@ services:
     environment:
       - GENERIC_TIMEZONE=America/New_York
       - TZ=America/New_York
-      - ADMIN_BEARER_TOKEN=secret-admin-token
-      - ADMIN_API_KEY=secret-admin-key
     entrypoint: ["/bin/sh", "-c"]
     command: "n8n import:workflow --input=/home/node/workflows/rag_pedagogical_workflow.json && n8n start"
 
