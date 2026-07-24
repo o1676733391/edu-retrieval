@@ -24,6 +24,15 @@ def load_global_cache():
         try:
             with open(global_cache_path, "r", encoding="utf-8") as f:
                 _global_cache = json.load(f)
+            # Safe parsing conversion of historical cache types
+            for key, val in _global_cache.items():
+                if isinstance(val, dict) and "physical_page" in val:
+                    p_page = val["physical_page"]
+                    if p_page is not None:
+                        try:
+                            val["physical_page"] = int(p_page)
+                        except (ValueError, TypeError):
+                            val["physical_page"] = None
         except Exception as e:
             print(f"[Warning] Failed to load global OCR page cache: {e}")
             _global_cache = {}
@@ -82,11 +91,17 @@ class PDFBookParser:
             if img_hash in cache:
                 cached_data = cache[img_hash]
                 print(f"[Cache Hit] Page {page_index + 1} of {self.pdf_path.name} loaded from global page cache.")
+                physical_page = cached_data.get("physical_page")
+                if physical_page is not None:
+                    try:
+                        physical_page = int(physical_page)
+                    except (ValueError, TypeError):
+                        physical_page = None
                 return {
                     "volume": self.volume,
                     "pdf_page_index": page_index,
                     "pdf_page_number": page_index + 1,
-                    "physical_page": cached_data.get("physical_page"),
+                    "physical_page": physical_page,
                     "lesson_name": cached_data.get("lesson_name"),
                     "text": cached_data.get("text", "")
                 }
@@ -333,11 +348,17 @@ class PDFBookParser:
                 with _cache_lock:
                     if img_hash in cache:
                         cached_data = cache[img_hash]
+                        physical_page = cached_data.get("physical_page")
+                        if physical_page is not None:
+                            try:
+                                physical_page = int(physical_page)
+                            except (ValueError, TypeError):
+                                physical_page = None
                         results[idx] = {
                             "volume": self.volume,
                             "pdf_page_index": idx,
                             "pdf_page_number": idx + 1,
-                            "physical_page": cached_data.get("physical_page"),
+                            "physical_page": physical_page,
                             "lesson_name": cached_data.get("lesson_name"),
                             "text": cached_data.get("text", "")
                         }
