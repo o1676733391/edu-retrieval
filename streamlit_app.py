@@ -33,6 +33,201 @@ def get_available_ocr_caches():
                 })
     return options
 
+# --- Prompt Module Helper Functions ---
+def get_barem_review_prompt(context: str, user_query: str, citation_block: str) -> str:
+    return f"""Bạn là một giáo viên tiểu học thân thiện, tận tụy và công tâm. Nhiệm vụ của bạn là chấm điểm và nhận xét bài làm của học sinh tiểu học (lớp 3) dựa trên Barem điểm (thang điểm chi tiết) và đáp án chuẩn được cung cấp.
+
+QUY TẮC BẮT BUỘC KHÔNG ĐƯỢC VI PHẠM (STRICT GROUNDED RAG):
+1. Bạn CHỈ ĐƯỢC PHÉP trả lời và chấm điểm dựa hoàn toàn vào thông tin bài toán có trong phần "Ngữ cảnh tài liệu SGK" dưới đây.
+2. KHÔNG ĐƯỢC tự ý bịa thêm kiến thức nằm ngoài ngữ cảnh.
+3. Nếu phần "Ngữ cảnh tài liệu SGK" KHÔNG CHỨA bài toán hay dữ liệu cần thiết để chấm điểm, bạn BẮT BUỘC phải trả lời chính xác câu thông báo sau và KHÔNG in phần trích dẫn nguồn:
+"⚠️ Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
+
+Ngữ cảnh tài liệu SGK:
+{context}
+
+Câu hỏi/Yêu cầu chấm điểm của người dùng (chứa Đề bài, Barem & Bài làm của học sinh):
+{user_query}
+
+Hãy thực hiện chấm điểm theo các bước sau:
+1. **Kiểm tra chi tiết từng bước:** So sánh từng bước giải của học sinh với các tiêu chí trong Barem điểm. Xác định học sinh đã làm đúng đến bước nào, tính toán có chính xác không.
+2. **Tính điểm:** Cộng điểm cho các bước làm đúng theo đúng barem điểm quy định. Chỉ rõ điểm đạt được cho từng phần.
+3. **Đưa ra nhận xét sư phạm:**
+   - **Khen ngợi trước:** Động viên những phần học sinh đã làm tốt (ví dụ: trình bày sạch sẽ, đúng hướng tư duy, phép tính chính xác).
+   - **Chỉ ra lỗi sai nhẹ nhàng:** Nếu học sinh làm sai hoặc thiếu bước, hãy giải thích cặn kẽ tại sao sai và sửa lại như thế nào bằng giọng điệu dịu dàng, khuyến khích (ví dụ: "Ở bước này, con đã nhầm một chút khi cộng...", "Con chú ý kỹ hơn phần đơn vị đo nhé!").
+   - **Gợi ý cải thiện:** Hướng dẫn cách để lần sau con làm tốt hơn.
+
+### ĐỊNH DẠNG PHẢN HỒI BẮT BUỘC (chỉ khi Ngữ cảnh SGK CÓ chứa câu trả lời):
+- **Lời chào & Lời khen ban đầu:** Động viên tinh thần học sinh/phụ huynh.
+- **Bảng chấm điểm chi tiết:**
+  | Phần / Bước giải | Yêu cầu Barem | Bài làm của con | Điểm đạt được |
+  | :--- | :--- | :--- | :--- |
+  | [Ví dụ: Bước 1] | [Yêu cầu...] | [Nhận xét bài làm...] | [X / Y điểm] |
+- **Tổng điểm:** **[Tổng số điểm đạt được] / [Tổng điểm tối đa]**
+- **Lời khuyên & Hướng dẫn sửa bài:** Giải thích chi tiết phần con làm sai và hướng dẫn từng bước làm đúng.
+- **Lời chúc & Động viên:** Truyền động lực để con tiếp tục cố gắng ở bài sau.
+
+Giọng điệu phải luôn luôn ấm áp, sử dụng các xưng hô gần gũi như "thầy/cô", "con", "bạn nhỏ", "phụ huynh".
+
+---
+📖 **Nguồn tham khảo:**
+{citation_block}
+"""
+
+def get_theory_explanation_prompt(context: str, user_query: str, citation_block: str) -> str:
+    return f"""Bạn là một giáo viên tiểu học có tài giảng dạy trực quan, sinh động. Nhiệm vụ của bạn là giải thích các định nghĩa, khái niệm toán học lớp 3 từ sách giáo khoa một cách dễ hiểu nhất cho học sinh hoặc phụ huynh học sinh.
+
+QUY TẮC BẮT BUỘC KHÔNG ĐƯỢC VI PHẠM (STRICT GROUNDED RAG):
+1. Bạn CHỈ ĐƯỢC PHÉP giải thích dựa hoàn toàn vào thông tin định nghĩa, khái niệm có trong phần "Ngữ cảnh tài liệu SGK" dưới đây.
+2. KHÔNG ĐƯỢC sử dụng kiến thức bên ngoài hay tri thức sẵn có của LLM để tự suy đoán nếu ngữ cảnh không nói đến.
+3. Nếu phần "Ngữ cảnh tài liệu SGK" KHÔNG CHỨA thông tin định nghĩa hoặc khái niệm phù hợp để giải thích câu hỏi của người dùng, bạn BẮT BUỘC phải trả lời chính xác câu thông báo sau và KHÔNG in phần trích dẫn nguồn:
+"⚠️ Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
+
+Ngữ cảnh tài liệu SGK:
+{context}
+
+Câu hỏi của học sinh/phụ huynh về khái niệm lý thuyết:
+{user_query}
+
+### NGUYÊN TẮC GIẢNG GIẢI:
+1. **Trực quan hóa (Visualization):** Không dùng các định nghĩa hằn học hay hàn lâm, khô khan. Hãy liên hệ với thực tế đời sống quen thuộc với các em (ví dụ: chia kẹo, cắt bánh pizza, đếm ngón tay, đo độ dài chiếc bút chì, v.v.).
+2. **Đơn giản hóa ngôn từ:** Sử dụng ngôn ngữ ngắn gọn, rõ ràng, nhịp điệu vui tươi, dễ thương phù hợp với trẻ em 8-9 tuổi.
+3. **Phân chia từng bước:** Giải thích khái niệm từ cơ bản nhất, sau đó đi vào ví dụ minh họa cụ thể.
+4. **Kiểm tra mức độ hiểu bài:** Cuối bài giảng, hãy đưa ra 1-2 câu hỏi đố vui hoặc thử thách nhỏ cực kỳ đơn giản để học sinh tự trả lời nhằm củng cố bài học.
+
+### ĐỊNH DẠNG PHẢN HỒI BẮT BUỘC (chỉ khi Ngữ cảnh SGK CÓ chứa câu trả lời):
+- **💡 Khái niệm đơn giản:** Định nghĩa ngắn gọn nhất bằng hình ảnh ví dụ (ví dụ: "Phép nhân là gì nhỉ? Nó giống như việc con cộng nhiều nhóm đồ vật có số lượng bằng nhau lại đấy!").
+- **🍎 Ví dụ thực tế:** Đưa ra câu chuyện hoặc hình ảnh minh họa sinh động.
+- **📝 Tóm tắt quy tắc:** Khung ghi nhớ ngắn gọn, dễ thuộc lòng (ví dụ: "Để tìm một phần mấy của một số, ta lấy số đó chia cho số phần nhé!").
+- **⭐ Thử thách nhỏ cho con:** 1 câu hỏi tương tác ngắn để con suy nghĩ và trả lời.
+
+---
+📖 **Nguồn tham khảo:**
+{citation_block}
+"""
+
+def get_exercise_generator_prompt(context: str, user_query: str, citation_block: str) -> str:
+    return f"""Bạn là một chuyên gia biên soạn tài liệu toán tiểu học. Nhiệm vụ của bạn là tạo ra các bài tập tự luyện mới dựa trên ngữ cảnh bài học trong sách giáo khoa được cung cấp dưới đây.
+
+QUY TẮC BẮT BUỘC KHÔNG ĐƯỢC VI PHẠM (STRICT GROUNDED RAG):
+1. Bạn CHỈ ĐƯỢC PHÉP tạo các bài toán mới mô phỏng theo đúng các dạng toán có trong phần "Ngữ cảnh tài liệu SGK" dưới đây.
+2. KHÔNG ĐƯỢC tự ý bịa ra các dạng toán lạ hay kiến thức nằm ngoài phạm vi các trang sách được cung cấp.
+3. Nếu phần "Ngữ cảnh tài liệu SGK" KHÔNG CHỨA bài tập mẫu hoặc thông tin toán học liên quan để tạo đề mới, bạn BẮT BUỘC phải trả lời chính xác câu thông báo sau và KHÔNG in phần trích dẫn nguồn:
+"⚠️ Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
+
+Ngữ cảnh tài liệu SGK:
+{context}
+
+Yêu cầu tạo bài tập của người dùng:
+{user_query}
+
+### QUY TẮC TẠO BÀI TẬP:
+1. **Đúng độ tuổi:** Bài tập phải đúng trình độ Toán lớp 3, không ra đề quá khó hay vượt chương trình.
+2. **Sát ngữ cảnh:** Đề bài mới phải tương tự về dạng toán, phương pháp giải với các bài tập đang có trong trang sách giáo khoa được trích xuất (ví dụ: toán có lời văn về gấp một số lên nhiều lần, tìm một phần mấy, hình học chu vi/diện tích, cộng trừ trong phạm vi 10 000).
+3. **Nội dung gần gũi:** Tên nhân vật, bối cảnh bài toán nên xoay quanh hoạt động học tập, vui chơi, gia đình của học sinh tiểu học (ví dụ: Bạn Nam xếp thuyền giấy, Mẹ mua táo ở siêu thị, lớp học trồng hoa).
+4. **Cấu trúc bộ đề luyện tập (3 mức độ):**
+   - **Bài 1 (Nhận biết/Thông hiểu):** Tương tự 100% dạng bài mẫu, chỉ thay đổi số và tên gọi.
+   - **Bài 2 (Vận dụng):** Kết hợp thêm một bước tính hoặc bối cảnh thực tế nhẹ nhàng.
+   - **Bài 3 (Vận dụng cao - Thử thách):** Bài toán đòi hỏi tư duy logic hơn một chút nhưng vẫn nằm trong phạm vi kiến thức đang học.
+
+### ĐỊNH DẠNG PHẢN HỒI BẮT BUỘC (chỉ khi Ngữ cảnh SGK CÓ chứa câu trả lời):
+- **🌟 Bộ bài tập tự luyện:** Liệt kê rõ đề bài Bài 1, Bài 2, Bài 3.
+- **🔑 Hướng dẫn & Đáp án (Dành cho Phụ huynh/Học sinh tự kiểm tra):** Sử dụng thẻ HTML `<details>` để ẩn lời giải chi tiết của từng bài, giúp con tự làm trước rồi mới xem đáp án.
+  Mẫu:
+  <details>
+  <summary>Xem gợi ý giải Bài 1</summary>
+  [Từng bước giải và kết số đáp án của Bài 1]
+  </details>
+
+---
+📖 **Dựa trên bài học nguồn:**
+{citation_block}
+"""
+
+def get_suggestive_tutor_prompt(context: str, user_query: str, citation_block: str) -> str:
+    return f"""Bạn là một Gia sư Toán Tiểu học có phương pháp dạy học tương tác, gợi mở (Socratic method). Khi học sinh hỏi bài tập hoặc nhờ giải toán, bạn TUYỆT ĐỐI KHÔNG được đưa ra lời giải đầy đủ hay kết quả cuối cùng ngay lập tức. Nhiệm vụ của bạn là dắt tay học sinh tự tìm ra đáp án.
+
+QUY TẮC BẮT BUỘC KHÔNG ĐƯỢC VI PHẠM (STRICT GROUNDED RAG):
+1. Bạn CHỈ ĐƯỢC PHÉP gợi ý dựa hoàn toàn vào thông tin và phương pháp giải toán có trong phần "Ngữ cảnh tài liệu SGK" dưới đây.
+2. Nếu phần "Ngữ cảnh tài liệu SGK" KHÔNG CHỨA bài toán hay phương pháp giải phù hợp, bạn BẮT BUỘC phải trả lời chính xác câu thông báo sau và KHÔNG in phần trích dẫn nguồn:
+"⚠️ Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
+
+Ngữ cảnh tài liệu SGK:
+{context}
+
+Câu hỏi cần gợi ý của học sinh:
+{user_query}
+
+### QUY TRÌNH HƯỚNG DẪN GỢI MỞ:
+1. **Phân tích đề bài cùng học sinh:** Giúp con xác định bài toán cho biết gì (Đã biết gì?) và bài toán hỏi gì (Cần tìm gì?).
+2. **Đặt câu hỏi gợi ý bước đầu tiên:** Đặt một câu hỏi ngắn, đơn giản hướng học sinh vào phép tính đầu tiên cần thực hiện.
+   *Ví dụ: "Để biết cả hai bạn có bao nhiêu viên bi, trước tiên chúng mình cần tính số bi của bạn nào con nhỉ?"*
+3. **Cung cấp gợi ý (Hint) thay vì đáp án:** Nếu con lúng túng, hãy đưa ra gợi ý nhỏ hoặc quy tắc toán học liên quan.
+   *Ví dụ: "Con nhớ lại xem, muốn gấp một số lên 3 lần thì chúng mình thực hiện phép tính gì nào?"*
+4. **Khích lệ phản hồi:** Luôn kết thúc câu trả lời bằng một câu hỏi mở để học sinh trả lời trước khi đi tiếp bước sau. Giữ phản hồi ngắn gọn để tạo thành một cuộc đối thoại liên tục.
+
+### QUY TẮC PHẢN HỒI:
+- Tuyệt đối KHÔNG viết phép tính có kết quả hoàn chỉnh hoặc đáp số cuối cùng của toàn bài.
+- Chỉ hướng dẫn giải quyết từng bước một. Đợi học sinh trả lời rồi mới hướng dẫn tiếp bước 2, bước 3.
+- Sử dụng ngôn ngữ động viên nhiệt tình: "Hay quá!", "Con thử tính xem...", "Chính xác rồi, bước tiếp theo sẽ là..."
+"""
+
+def get_direct_solver_prompt(context: str, user_query: str, citation_block: str) -> str:
+    return f"""Bạn là một Trợ lý Giải Toán Tiểu học nhanh chóng và chính xác. Nhiệm vụ của bạn là đưa ra kết quả cuối cùng ngay lập tức để học sinh/phụ huynh đối chiếu, sau đó trình bày bài giải chi tiết, rõ ràng theo đúng chuẩn sư phạm lớp 3.
+
+QUY TẮC BẮT BUỘC KHÔNG ĐƯỢC VI PHẠM (STRICT GROUNDED RAG):
+1. Bạn CHỈ ĐƯỢC PHÉP giải toán dựa hoàn toàn vào thông tin và phương pháp giải có trong phần "Ngữ cảnh tài liệu SGK" dưới đây.
+2. Nếu phần "Ngữ cảnh tài liệu SGK" KHÔNG CHỨA thông tin cần để giải bài toán, bạn BẮT BUỘC phải trả lời chính xác câu thông báo sau và KHÔNG in phần trích dẫn nguồn:
+"⚠️ Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
+
+Ngữ cảnh tài liệu SGK:
+{context}
+
+Câu hỏi/Bài toán cần giải:
+{user_query}
+
+### QUY TẮC TRÌNH BÀY:
+1. **Đưa ra kết quả ngay:** Ở dòng đầu tiên của câu trả lời, in đậm kết quả hoặc đáp số của bài toán.
+2. **Giải trình chi tiết từng bước (Step-by-step):** Trình bày lời giải rõ ràng, ghi rõ câu trả lời, phép tính và đơn vị kèm theo. Giải thích ngắn gọn logic đằng sau mỗi phép tính để người học hiểu bản chất.
+3. **Trích dẫn nguồn sách giáo khoa:** Kết thúc bằng phần trích dẫn nguồn chuẩn RAG.
+
+### ĐỊNH DẠNG PHẢN HỒI BẮT BUỘC (chỉ khi Ngữ cảnh SGK CÓ chứa câu trả lời):
+- **🎯 Đáp số nhanh:** **[Kết quả / Đáp số chính xác]**
+- **📝 Bài giải chi tiết:**
+  - **Bước 1:** [Lời giải và phép tính] -> [Giải thích lý do/công thức]
+  - **Bước 2:** [Lời giải và phép tính] -> [Giải thích lý do/công thức]
+  - **Đáp số:** [Đầy đủ đáp số kèm đơn vị]
+
+---
+📖 **Nguồn tham khảo:**
+{citation_block}
+"""
+
+def get_default_teacher_prompt(context: str, user_query: str, citation_block: str) -> str:
+    return f"""Bạn là một giáo viên tiểu học thân thiện, tận tụy và dịu dàng.
+
+QUY TẮC BẮT BUỘC KHÔNG ĐƯỢC VI PHẠM (STRICT GROUNDED RAG):
+1. Bạn CHỈ ĐƯỢC PHÉP trả lời dựa hoàn toàn vào thông tin có trong phần "Ngữ cảnh tài liệu SGK" dưới đây.
+2. KHÔNG ĐƯỢC sử dụng kiến thức bên ngoài hay tri thức sẵn có của LLM để tự suy đoán nếu ngữ cảnh không nói đến.
+3. Nếu phần "Ngữ cảnh tài liệu SGK" KHÔNG CHỨA thông tin trực tiếp liên quan hoặc KHÔNG ĐỦ để trả lời câu hỏi của người dùng, bạn BẮT BUỘC phải trả lời chính xác câu thông báo sau và KHÔNG in phần trích dẫn nguồn:
+"⚠️ Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
+
+Ngữ cảnh tài liệu SGK:
+{context}
+
+Câu hỏi của người dùng:
+{user_query}
+
+Yêu cầu định dạng câu trả lời (chỉ khi Ngữ cảnh SGK CÓ chứa câu trả lời):
+1. Trả lời thân thiện, giải thích từng bước logic toán học rõ ràng.
+2. Trả lời hoàn toàn bằng tiếng Việt.
+3. Cuối câu trả lời, in rõ phần trích dẫn nguồn theo đúng định dạng sau:
+
+---
+📖 **Nguồn tham khảo:**
+{citation_block}
+"""
+
 # --- Page Setup ---
 st.set_page_config(
     page_title="Hệ thống Trợ lý Học tập SGK Toán 3",
@@ -163,6 +358,29 @@ with st.sidebar:
         help="Mã danh mục/môn học dùng để cô lập dữ liệu (ví dụ: math, science, english)"
     )
     
+    # Prompt module selection
+    agent_mode = st.selectbox(
+        "Mô-đun Trợ lý (Agent Prompt Module)",
+        options=[
+            "default",
+            "barem_review",
+            "theory_explanation",
+            "exercise_generator",
+            "suggestive_tutor",
+            "direct_solver"
+        ],
+        index=0,
+        format_func=lambda x: {
+            "default": "Mặc định (Giáo viên Tiểu học)",
+            "barem_review": "Chấm điểm Barem (Barem Review)",
+            "theory_explanation": "Giảng lý thuyết (Theory)",
+            "exercise_generator": "Tạo bài tập (Exercise Gen)",
+            "suggestive_tutor": "Gợi mở dắt tay (Suggestive)",
+            "direct_solver": "Giải nhanh ra đáp số (Direct Solver)"
+        }.get(x, x),
+        help="Chọn mô-đun prompt để cấu hình phong cách trả lời của Trợ lý AI."
+    )
+    
     # Embeddings / OCR configuration choice
     embed_provider = "Gemini (text-embedding-004)" if (config.GEMINI_API_KEY or config.USE_VERTEXAI) else ("OpenAI" if config.OPENAI_API_KEY else "Chưa cấu hình")
     st.write(f"**Bộ xử lý Vector Nhúng:** {embed_provider}")
@@ -182,13 +400,15 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Tabs Setup ---
-tab_chatbot, tab_search, tab_upload, tab_api_retrieval, tab_preview, tab_health = st.tabs([
+tab_chatbot, tab_search, tab_upload, tab_api_retrieval, tab_preview, tab_health, tab_prompt_reg, tab_live_test = st.tabs([
     "💬 Trợ lý AI Chatbot",
     "🔍 Tra cứu RAG & Multi-Domain",
     "📤 Nạp tài liệu & OCR (Upload)",
     "⚡ Kiểm thử API Retrieval & Vectors",
     "🔍 Xem trước Vector DB (Preview)",
-    "🏥 Trạng thái Hệ thống (Health)"
+    "🏥 Trạng thái Hệ thống (Health)",
+    "⚙️ Quản lý Prompts (Registry)",
+    "🧪 Live Testing (n8n Webhook)"
 ])
 
 # =====================================================================
@@ -276,30 +496,19 @@ with tab_chatbot:
                         else:
                             ai_client = genai.Client(api_key=config.GEMINI_API_KEY)
                             
-                        # Strict Grounded Prompt: Only rely on document context, refuse if missing
-                        prompt_template = f"""Bạn là một giáo viên tiểu học thân thiện, tận tụy và dịu dàng.
-
-QUY TẮC BẮT BUỘC KHÔNG ĐƯỢC VI PHẠM (STRICT GROUNDED RAG):
-1. Bạn CHỈ ĐƯỢC PHÉP trả lời dựa hoàn toàn vào thông tin có trong phần "Ngữ cảnh tài liệu SGK" dưới đây.
-2. KHÔNG ĐƯỢC sử dụng kiến thức bên ngoài hay tri thức sẵn có của LLM để tự suy đoán nếu ngữ cảnh không nói đến.
-3. Nếu phần "Ngữ cảnh tài liệu SGK" KHÔNG CHỨA thông tin trực tiếp liên quan hoặc KHÔNG ĐỦ để trả lời câu hỏi của người dùng, bạn BẮT BUỘC phải trả lời chính xác câu thông báo sau và KHÔNG in phần trích dẫn nguồn:
-"⚠️ Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
-
-Ngữ cảnh tài liệu SGK:
-{joined_context}
-
-Câu hỏi của người dùng:
-{prompt}
-
-Yêu cầu định dạng câu trả lời (chỉ khi Ngữ cảnh SGK CÓ chứa câu trả lời):
-1. Trả lời thân thiện, giải thích từng bước logic toán học rõ ràng.
-2. Trả lời hoàn toàn bằng tiếng Việt.
-3. Cuối câu trả lời, in rõ phần trích dẫn nguồn theo đúng định dạng sau:
-
----
-📖 **Nguồn tham khảo:**
-{citation_block}
-"""
+                        # Build prompt template based on selected prompt module/mode
+                        if agent_mode == "barem_review":
+                            prompt_template = get_barem_review_prompt(joined_context, prompt, citation_block)
+                        elif agent_mode == "theory_explanation":
+                            prompt_template = get_theory_explanation_prompt(joined_context, prompt, citation_block)
+                        elif agent_mode == "exercise_generator":
+                            prompt_template = get_exercise_generator_prompt(joined_context, prompt, citation_block)
+                        elif agent_mode == "suggestive_tutor":
+                            prompt_template = get_suggestive_tutor_prompt(joined_context, prompt, citation_block)
+                        elif agent_mode == "direct_solver":
+                            prompt_template = get_direct_solver_prompt(joined_context, prompt, citation_block)
+                        else:
+                            prompt_template = get_default_teacher_prompt(joined_context, prompt, citation_block)
                         response = ai_client.models.generate_content(
                             model="gemini-2.5-flash",
                             contents=prompt_template
@@ -1018,3 +1227,251 @@ with tab_health:
         st.write(f"- Thư mục DB: `{config.DB_DIR}`")
         st.write(f"- Thư mục mẫu: `{config.DATA_SAMPLES_DIR}`")
         st.markdown('</div>', unsafe_allow_html=True)
+
+
+# =====================================================================
+# TAB 7: CENTRALIZED PROMPT REGISTRY
+# =====================================================================
+with tab_prompt_reg:
+    st.markdown("### ⚙️ Hệ thống Quản lý Prompts Tập trung (Prompt Registry)")
+    st.markdown("Quản lý, chỉnh sửa, và kích hoạt các phiên bản system prompts cho từng Agent trong hệ thống mà không cần cập nhật file n8n workflow.")
+    
+    # Selected profile
+    profile_col1, profile_col2 = st.columns([3, 1])
+    with profile_col1:
+        selected_profile = st.selectbox(
+            "📁 Chọn Profile Prompts",
+            options=["default", "math", "science"],
+            index=0,
+            key="prompt_reg_profile"
+        )
+    with profile_col2:
+        custom_profile = st.text_input("Hoặc nhập Profile mới", value="", key="prompt_reg_custom_profile")
+        if custom_profile.strip():
+            selected_profile = custom_profile.strip()
+            
+    # List of Agents
+    agent_options = [
+        "planner",
+        "default_teacher",
+        "barem_review",
+        "theory_explanation",
+        "exercise_generator",
+        "suggestive_tutor",
+        "direct_solver",
+        "verifier"
+    ]
+    
+    selected_agent_name = st.selectbox(
+        "🤖 Chọn Agent để quản lý",
+        options=agent_options,
+        index=1, # Default to default_teacher
+        format_func=lambda x: {
+            "planner": "1. Bộ Điều Phối (Planner Agent)",
+            "default_teacher": "2. Giáo viên Mặc định (Default Teacher)",
+            "barem_review": "3. Chấm điểm Barem (Barem Reviewer)",
+            "theory_explanation": "4. Giảng Lý thuyết (Theory Explainer)",
+            "exercise_generator": "5. Tạo Bài tập (Exercise Generator)",
+            "suggestive_tutor": "6. Gia sư Gợi mở (Suggestive Tutor)",
+            "direct_solver": "7. Giải nhanh (Direct Solver)",
+            "verifier": "8. Bộ Kiểm định QA (Verifier Agent)"
+        }.get(x, x),
+        key="prompt_reg_agent"
+    )
+    
+    # Load active prompt for this agent and profile from FastAPI
+    api_url_active = f"http://localhost:8080/api/prompts/active?profile={selected_profile}"
+    active_prompt_text = ""
+    try:
+        res = requests.get(api_url_active)
+        if res.status_code == 200:
+            active_prompts = res.json()
+            active_prompt_text = active_prompts.get(selected_agent_name, "")
+        else:
+            st.error(f"Lỗi khi tải prompt hiện tại từ backend (Status: {res.status_code})")
+    except Exception as e:
+        st.error(f"Không thể kết nối đến backend API: {e}")
+        
+    st.markdown("#### 📝 Nội dung Prompt hiện tại (Hoạt động)")
+    new_prompt_text = st.text_area(
+        "Chỉnh sửa nội dung prompt",
+        value=active_prompt_text,
+        height=300,
+        key=f"prompt_reg_text_area_{selected_profile}_{selected_agent_name}"
+    )
+    
+    col_pub1, col_pub2 = st.columns([1, 4])
+    with col_pub1:
+        if st.button("🚀 Xuất bản Phiên bản Mới", type="primary", use_container_width=True, key="btn_publish_prompt"):
+            if not new_prompt_text.strip():
+                st.error("Nội dung prompt không được để trống.")
+            else:
+                try:
+                    payload = {
+                        "agent_name": selected_agent_name,
+                        "profile": selected_profile,
+                        "prompt_text": new_prompt_text,
+                        "updated_by": "admin",
+                        "is_active": True
+                    }
+                    res_pub = requests.post("http://localhost:8080/api/prompts", json=payload)
+                    if res_pub.status_code == 200:
+                        st.success(f"✅ Đã xuất bản phiên bản {res_pub.json().get('version')} thành công!")
+                        st.rerun()
+                    else:
+                        st.error(f"Lỗi khi xuất bản: {res_pub.text}")
+                except Exception as e:
+                    st.error(f"Lỗi kết nối: {e}")
+                    
+    # History of versions
+    st.markdown("---")
+    st.markdown("#### ⏳ Lịch sử thay đổi (Versions History)")
+    api_url_history = f"http://localhost:8080/api/prompts/versions?agent_name={selected_agent_name}&profile={selected_profile}"
+    try:
+        res_hist = requests.get(api_url_history)
+        if res_hist.status_code == 200:
+            history = res_hist.json()
+            if not history:
+                st.info("Chưa có lịch sử phiên bản nào cho Agent và Profile này.")
+            else:
+                for item in history:
+                    is_act = item["is_active"] == 1
+                    status_lbl = "🟢 [ĐANG HOẠT ĐỘNG]" if is_act else "⚪ [LỊCH SỬ]"
+                    with st.expander(f"Phiên bản {item['version']} | {status_lbl} | Cập nhật bởi: {item['updated_by']} lúc {item['updated_at']}"):
+                        st.code(item["prompt_text"], language="text")
+                        if not is_act:
+                            if st.button(f"Kích hoạt & Quay lại phiên bản {item['version']}", key=f"btn_rollback_{item['id']}"):
+                                try:
+                                    payload_act = {
+                                        "agent_name": selected_agent_name,
+                                        "profile": selected_profile,
+                                        "version": item["version"],
+                                        "updated_by": "admin"
+                                    }
+                                    res_act = requests.post("http://localhost:8080/api/prompts/activate", json=payload_act)
+                                    if res_act.status_code == 200:
+                                        st.success(f"✅ Đã quay lại phiên bản {item['version']} thành công!")
+                                        st.rerun()
+                                    else:
+                                        st.error(f"Lỗi khi kích hoạt phiên bản: {res_act.text}")
+                                except Exception as e:
+                                    st.error(f"Lỗi kết nối: {e}")
+        else:
+            st.error(f"Lỗi khi tải lịch sử: {res_hist.status_code}")
+    except Exception as e:
+        st.error(f"Lỗi kết nối khi tải lịch sử: {e}")
+
+
+# =====================================================================
+# TAB 8: LIVE TESTING SECURE WEBHOOK
+# =====================================================================
+with tab_live_test:
+    st.markdown("### 🧪 Live Testing (n8n Webhook Verification)")
+    st.markdown("Gửi các câu hỏi kiểm thử kèm theo tùy chỉnh profile prompt, phiên bản, hoặc các prompt overrides trực tiếp tới n8n Webhook và theo dõi phản hồi thời gian thực.")
+    
+    use_overrides = st.checkbox("Sử dụng Prompt Overrides", value=False, key="lt_use_overrides")
+    
+    col_lt_cfg1, col_lt_cfg2 = st.columns(2)
+    with col_lt_cfg1:
+        n8n_url_lt = st.text_input(
+            "🔗 n8n Production Webhook URL", 
+            value="http://localhost:5678/webhook/COEDNaQ6fu6k1xeE/webhook/rag-math-assistant",
+            key="lt_n8n_url"
+        )
+        if use_overrides:
+            lt_auth_token = st.text_input(
+                "🔑 Admin Bearer Token / API Key", 
+                value="secret-admin-token",
+                type="password",
+                key="lt_auth_token",
+                help="Bearer token hoặc API key để xác thực với Webhook bảo mật."
+            )
+        else:
+            st.info("ℹ️ Chế độ truy vấn thường: Không yêu cầu Token bảo mật.")
+            lt_auth_token = ""
+    with col_lt_cfg2:
+        lt_profile = st.text_input("📁 prompt_profile", value="default", key="lt_profile")
+        lt_version_str = st.text_input("🔢 prompt_version (Tùy chọn, để trống = active)", value="", key="lt_version")
+        lt_version = int(lt_version_str) if lt_version_str.strip().isdigit() else None
+        
+    st.markdown("#### 🧠 Prompt Overrides (Tùy chỉnh đè hệ thống)")
+    st.markdown("Bạn có thể viết đè prompt tạm thời cho các Agent cụ thể (chỉ áp dụng cho lượt gọi Webhook này).")
+    
+    prompt_overrides = {}
+    
+    if use_overrides:
+        agent_override_options = [
+            "planner",
+            "default_teacher",
+            "barem_review",
+            "theory_explanation",
+            "exercise_generator",
+            "suggestive_tutor",
+            "direct_solver",
+            "verifier"
+        ]
+        
+        for agent_name in agent_override_options:
+            override_val = st.text_area(
+                f"Đè prompt cho '{agent_name}'",
+                value="",
+                height=100,
+                key=f"lt_override_{agent_name}",
+                placeholder="Nhập prompt thay thế để kiểm thử..."
+            )
+            if override_val.strip():
+                prompt_overrides[agent_name] = override_val.strip()
+                
+    st.markdown("#### 📝 Nội dung câu hỏi thử nghiệm")
+    lt_prompt = st.text_area("Câu hỏi (Prompt)", value="Con muốn làm bài 2 trang 15 tập 1 nhưng chưa biết bắt đầu thế nào. Cô gợi ý cho con được không?", height=100, key="lt_prompt")
+    lt_subject = st.text_input("📚 Môn học (Subject)", value="math", key="lt_subject")
+    
+    if st.button("🚀 Thực thi Live Test", type="primary", use_container_width=True, key="btn_run_lt"):
+        if not lt_prompt.strip():
+            st.error("Vui lòng nhập câu hỏi.")
+        else:
+            with st.spinner("Đang gửi câu hỏi & prompt cấu hình tới n8n Multi-Agent... 💭"):
+                start_t = time.time()
+                try:
+                    payload = {
+                        "prompt": lt_prompt,
+                        "subject": lt_subject,
+                        "prompt_profile": lt_profile,
+                        "prompt_version": lt_version,
+                        "prompt_overrides": prompt_overrides
+                    }
+                    
+                    headers = {
+                        "Content-Type": "application/json"
+                    }
+                    if lt_auth_token.strip():
+                        headers["Authorization"] = f"Bearer {lt_auth_token.strip()}"
+                        headers["X-API-Key"] = lt_auth_token.strip()
+                        
+                    res = requests.post(n8n_url_lt, json=payload, headers=headers, timeout=120)
+                    elapsed = time.time() - start_t
+                    
+                    if res.status_code == 200:
+                        try:
+                            res_data = res.json()
+                            output_text = res_data.get("output", "")
+                            if not output_text and "response" in res_data:
+                                output_text = res_data["response"]
+                                
+                            st.success(f"✅ Hoàn thành trong {elapsed:.2f} giây!")
+                            
+                            st.markdown("#### 🎯 Phản hồi đã xác minh (Verified Output):")
+                            st.markdown('<div class="custom-card" style="background-color: #f0fdf4; border-left: 5px solid #16a34a;">', unsafe_allow_html=True)
+                            st.markdown(output_text)
+                            st.markdown('</div>', unsafe_allow_html=True)
+                            
+                            with st.expander("📋 Chi tiết phản hồi raw JSON"):
+                                st.json(res_data)
+                        except Exception as e:
+                            st.warning(f"Trả về 200 OK nhưng không thể giải mã JSON: {e}")
+                            st.text_area("Raw Response Content", value=res.text, height=200)
+                    else:
+                        st.error(f"❌ Lỗi từ n8n Webhook (Status Code: {res.status_code})")
+                        st.text_area("Chi tiết lỗi raw", value=res.text, height=200)
+                except Exception as e:
+                    st.error(f"❌ Lỗi kết nối tới n8n Webhook: {e}")

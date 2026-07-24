@@ -29,13 +29,23 @@ graph TD
         Search_API["POST /api/search<br>(query, role, field, top_k)"]
         Preview_API["GET /api/preview<br>(field, role, limit)"]
         Health_API["GET /api/health"]
+        LLM_Proxy["POST /api/llm<br>(GCP Vertex AI / Gemini API wrapper)"]
     end
 
-    subgraph NodeJS_Orchestration ["3. NodeJS Backend Orchestration"]
-        NodeJS_App["NodeJS Backend Service"] -->|Invoke Search API| Search_API
-        Search_API -->|Retrieved JSON Context| NodeJS_App
-        NodeJS_App -->|Format Teacher System Prompt + Context| LLM_Execution["Vertex AI / Gemini Execution"]
-        LLM_Execution -->|Encouraging Step-by-Step Response| NodeJS_Output["Final Teacher Response in Vietnamese"]
+    subgraph n8n_Orchestration ["3. n8n Multi-Agent Orchestration & LLM Proxy"]
+        Webhook_In["Webhook POST /webhook/rag-math-assistant"] -->|1. Validate Credentials| Security_Gate["Security & Sanitization Gate"]
+        Security_Gate -->|2. Fetch Prompts| Fetch_Prompts["Fetch Active Prompts<br>(GET /api/prompts/active)"]
+        Fetch_Prompts -->|3. User Prompt & System Prompt| Planner_Agent["Planner Agent"]
+        Planner_Agent -->|4. Call Proxy /api/llm| LLM_Proxy
+        LLM_Proxy -->|5. Route intent + need RAG?| Parse_Planner["Parse Planner Decision"]
+        Parse_Planner -->|6. If RAG = true| Call_Retriever["Call Python Retrieval API<br>(POST /api/retrieval)"]
+        Call_Retriever -->|7. Merge Context & Route| Router{"Orchestrator Router"}
+        Router -->|Expert Agent| Expert_Agent["Expert LLM Agent<br>(Tutor/Solver/Reviewer...)"]
+        Expert_Agent -->|8. Call Proxy /api/llm| LLM_Proxy
+        Expert_Agent -->|9. Draft Response| Aggregate["Aggregate Expert Draft"]
+        Aggregate -->|10. Verify Grounding| Verifier["Verifier QA Agent"]
+        Verifier -->|11. Call Proxy /api/llm| LLM_Proxy
+        Verifier -->|12. Final Answer| Respond_Webhook["Respond to Webhook (200 OK JSON)"]
     end
 
     subgraph Retrieval_Loop ["4. RBAC Retrieval Loop (FastAPI Side)"]
@@ -87,11 +97,24 @@ The system implements strict separation of concerns to handle visually-intensive
 *   **Single-UUID Document Ingestion:** Each ingested document (`POST /ingestion`) is tagged with **exactly 1 unique `tag_name_uuid`**. Every chunk generated from the document explicitly attaches `"tag_name_uuid": "uuid_x"` in its metadata.
 *   **Multi-UUID Retrieval Routing:** When querying via `POST /retrieval`, a list of target UUIDs (`tag_name_uuids: ["uuid_1", "uuid_2", ...]`) is passed. The retrieval engine targets collections or chunks associated with ANY of the specified UUIDs in the array. Chunks belonging to UUIDs not present in the list are 100% excluded from the query scope.
 
+### F. LLM Completion Proxying & n8n Orchestration
+*   **n8n Workflow Execution:** The workflow begins with a POST Webhook receiving the user query. The `Security & Sanitization Gate` validates credentials and sanitizes prompt overrides, then the `Fetch Active Prompts` node retrieves the active system instructions from the Prompt Registry DB. The Planner Agent evaluates user intent using these fetched system prompts, and decides which expert to call and whether RAG is necessary.
+*   **FastAPI LLM Proxy (`/api/llm`):** All LLM calls (Planner Agent, Expert Agents, and Verifier Agent) are routed through the FastAPI backend's `/api/llm` endpoint. The proxy dynamically determines the backend provider based on configuration (`USE_VERTEXAI` or `GEMINI_API_KEY`) and calls Gemini (`gemini-2.5-flash`) securely using the container's GCP environment, removing credential management overhead from n8n.
+*   **RAG Routing & Guardrails:** If context retrieval is required, n8n invokes `/api/retrieval`. If retrieval returns no results, a strict fallback guardrail instantly triggers to prevent LLM hallucinations.
+*   **Multi-Agent Expert Routing:** The Orchestrator Router dynamically splits flows based on the Planner Agent's decision:
+    - `barem_review` -> `Barem Reviewer`
+    - `theory_explanation` -> `Theory Explainer`
+    - `exercise_generator` -> `Exercise Generator`
+    - `suggestive_tutor` -> `Suggestive Tutor`
+    - `direct_solver` -> `Direct Solver`
+    - `default` -> `Default Teacher`
+*   **Verifier & Socratic Tone Quality Control:** Once an expert generates a draft response, the `Verifier QA Agent` validates it against the retrieved context to verify grounding and ensure an encouraging pedagogical tone suitable for primary school students before outputting the final result.
+
 ---
 
 ## 3. System Features List
 
-1.  **Multimodal OCR Pipeline:** Converts scanned image-only PDF pages into markdown text, extracting lesson headers and page numbers.
+1.  **Tag-based Ingestion & Ingestion API:** Support modular pipelines with custom fields and visibility scopes.
 2.  **Subject Field Isolation:** Creates independent database collections per subject area to prevent data cross-contamination.
 3.  **Role-Based Access Control:** Filters search results based on visibility tags (`public`, `teacher_only`, `admin_only`) mapped to user roles (`student`, `teacher`, `admin`).
 4.  **Hybrid Dense-Sparse Search:** Combines vector embeddings (`text-embedding-004`) with keyword BM25 search.
@@ -105,6 +128,10 @@ The system implements strict separation of concerns to handle visually-intensive
 12. **Multi-Domain & Date-Filtered Retrieval (`/retrieval`):** Routes queries across multiple domain UUIDs with content-type targeting (`doc` vs `qa`) and epoch numeric date-range filtering (`from_date` to `to_date`).
 13. **Single-UUID Ingestion & Override/Update Modes (`/ingestion`):** Ingests PDF/QA documents with exact 1:1 `tag_name_uuid` metadata tagging, supporting `update` vs `override` deletion modes.
 14. **Interactive Streamlit AI Chatbot & Chunk Visualizer:** Provides interactive pedagogical chat with Gemini AI reasoning, automatic textbook footnotes (`📖 Nguồn tham khảo`), and visual Chunk Separated Cards.
+15. **n8n Multi-Agent System:** Automates orchestration, intent analysis, expert routing, and output verification via n8n.
+16. **FastAPI LLM proxy wrapper (`/api/llm`):** Eliminates API key rate limits and OAuth overhead inside n8n by funneling LLM prompts through the container's GCP authenticated environment.
+17. **Centralized Prompt Registry System:** Manages system prompts dynamically in a SQLite database via Streamlit UI with version history and rollback capabilities.
+18. **Secure Webhook Layer:** Enforces Bearer Token/API Key verification and allowlist sanitization on incoming webhook overrides in n8n.
 
 ---
 

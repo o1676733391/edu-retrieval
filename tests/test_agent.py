@@ -412,6 +412,118 @@ class TestEducationalAssistant(unittest.TestCase):
             top_k=5
         )
 
+class TestPromptRegistry(unittest.TestCase):
+
+    def setUp(self):
+        from src.prompt_registry.registry import get_db_connection, initialize_prompt_db
+        initialize_prompt_db()
+        with get_db_connection() as conn:
+            conn.execute("DELETE FROM prompt_registry")
+            conn.commit()
+
+    def test_database_initialization_and_seeding(self):
+        from src.prompt_registry.registry import get_active_prompts, initialize_prompt_db
+        initialize_prompt_db()
+        prompts = get_active_prompts(profile="default")
+        self.assertIn("planner", prompts)
+        self.assertIn("default_teacher", prompts)
+        self.assertIn("barem_review", prompts)
+        self.assertIn("verifier", prompts)
+        self.assertTrue(len(prompts["default_teacher"]) > 0)
+
+    def test_create_and_activate_prompt(self):
+        from src.prompt_registry.registry import (
+            create_prompt_version, 
+            activate_prompt_version, 
+            get_active_prompts,
+            CreatePromptRequest,
+            ActivatePromptRequest
+        )
+        
+        # 1. Create a version
+        req = CreatePromptRequest(
+            agent_name="default_teacher",
+            profile="test_profile",
+            prompt_text="Custom teacher prompt ver 1",
+            is_active=True
+        )
+        new_prompt = create_prompt_version(req)
+        self.assertEqual(new_prompt["version"], 1)
+        self.assertEqual(new_prompt["is_active"], 1)
+        
+        # Verify active prompts for test_profile
+        active = get_active_prompts(profile="test_profile")
+        self.assertEqual(active["default_teacher"], "Custom teacher prompt ver 1")
+        
+        # 2. Create another version (inactive)
+        req2 = CreatePromptRequest(
+            agent_name="default_teacher",
+            profile="test_profile",
+            prompt_text="Custom teacher prompt ver 2",
+            is_active=False
+        )
+        new_prompt2 = create_prompt_version(req2)
+        self.assertEqual(new_prompt2["version"], 2)
+        self.assertEqual(new_prompt2["is_active"], 0)
+        
+        # Active prompt should still be ver 1
+        active = get_active_prompts(profile="test_profile")
+        self.assertEqual(active["default_teacher"], "Custom teacher prompt ver 1")
+        
+        # 3. Activate ver 2
+        act_req = ActivatePromptRequest(
+            agent_name="default_teacher",
+            profile="test_profile",
+            version=2
+        )
+        activate_prompt_version(act_req)
+        
+        # Active prompt should now be ver 2
+        active = get_active_prompts(profile="test_profile")
+        self.assertEqual(active["default_teacher"], "Custom teacher prompt ver 2")
+
+    def test_api_endpoints(self):
+        from fastapi.testclient import TestClient
+        from src.api.main import app
+        
+        client = TestClient(app)
+        
+        # Test active prompts endpoint
+        response = client.get("/api/prompts/active?profile=default")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("planner", data)
+        
+        # Test create prompt endpoint
+        response = client.post("/api/prompts", json={
+            "agent_name": "barem_review",
+            "profile": "api_test_profile",
+            "prompt_text": "Custom barem review prompt for API test",
+            "updated_by": "tester",
+            "is_active": True
+        })
+        self.assertEqual(response.status_code, 200)
+        new_prompt = response.json()
+        self.assertEqual(new_prompt["profile"], "api_test_profile")
+        self.assertEqual(new_prompt["version"], 1)
+        
+        # Test versions endpoint
+        response = client.get("/api/prompts/versions?agent_name=barem_review&profile=api_test_profile")
+        self.assertEqual(response.status_code, 200)
+        versions = response.json()
+        self.assertTrue(len(versions) >= 1)
+        self.assertEqual(versions[0]["updated_by"], "tester")
+        
+        # Test activate endpoint
+        response = client.post("/api/prompts/activate", json={
+            "agent_name": "barem_review",
+            "profile": "api_test_profile",
+            "version": 1,
+            "updated_by": "tester"
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "success")
+
 if __name__ == "__main__":
     unittest.main()
 

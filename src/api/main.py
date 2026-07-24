@@ -6,6 +6,15 @@ from src import config
 from src.pipeline.ingest import run_ingest
 from src.vector_store.search import book_knowledge_search, multi_domain_retrieval
 from src.vector_store.client import get_vector_db_client, get_embedding_function, get_or_create_collection
+from src.prompt_registry.registry import (
+    initialize_prompt_db,
+    get_active_prompts,
+    get_prompt_versions,
+    create_prompt_version,
+    activate_prompt_version,
+    CreatePromptRequest,
+    ActivatePromptRequest
+)
 
 app = FastAPI(
     title="Grade 3 Math Assistant API",
@@ -20,6 +29,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+def on_startup():
+    initialize_prompt_db()
 
 class IngestRequest(BaseModel):
     file_path: Optional[str] = None
@@ -442,5 +455,90 @@ def retrieval_endpoint(req: RetrievalPayloadRequest):
             "total_results": len(results),
             "results": results
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class LLMRequest(BaseModel):
+    prompt: str
+    system_instruction: Optional[str] = None
+
+
+@app.post("/api/llm")
+@app.post("/llm")
+def call_llm(req: LLMRequest):
+    """
+    Utility endpoint to call the Gemini model using the configured provider (Vertex AI or Google AI Studio).
+    """
+    try:
+        from google import genai
+        from google.genai import types
+        
+        if config.USE_VERTEXAI:
+            ai_client = genai.Client(
+                vertexai=True,
+                project=config.GOOGLE_CLOUD_PROJECT,
+                location=config.GOOGLE_CLOUD_LOCATION
+            )
+        else:
+            if not config.GEMINI_API_KEY:
+                raise ValueError("GEMINI_API_KEY is not configured in the environment.")
+            ai_client = genai.Client(api_key=config.GEMINI_API_KEY)
+            
+        config_params = {}
+        if req.system_instruction:
+            config_params["system_instruction"] = req.system_instruction
+            
+        response = ai_client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=req.prompt,
+            config=types.GenerateContentConfig(**config_params) if config_params else None
+        )
+        
+        return {
+            "status": "success",
+            "text": response.text
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/prompts/active")
+def get_active_prompts_endpoint(profile: str = "default", version: Optional[int] = None):
+    try:
+        prompts = get_active_prompts(profile=profile, version=version)
+        return prompts
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/prompts/versions")
+def get_prompt_versions_endpoint(agent_name: Optional[str] = None, profile: Optional[str] = None):
+    try:
+        versions = get_prompt_versions(agent_name=agent_name, profile=profile)
+        return versions
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/prompts")
+def create_prompt_endpoint(req: CreatePromptRequest):
+    try:
+        new_prompt = create_prompt_version(req)
+        return new_prompt
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/prompts/activate")
+def activate_prompt_endpoint(req: ActivatePromptRequest):
+    try:
+        success = activate_prompt_version(req)
+        return {
+            "status": "success",
+            "message": f"Successfully activated version {req.version} for agent '{req.agent_name}' in profile '{req.profile}'"
+        }
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
