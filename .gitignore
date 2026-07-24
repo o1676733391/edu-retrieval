@@ -16,6 +16,9 @@ ENV/
 # Data & Database Caches
 data/chroma_db/
 data/processed_book_data.json
+data/processed_*_data.json
+data/ocr_page_cache.json
+data/ocr_checkpoints/
 data/uploads/
 *.db
 *.sqlite3

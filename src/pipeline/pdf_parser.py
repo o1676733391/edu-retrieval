@@ -6,8 +6,39 @@ from pathlib import Path
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
 import hashlib
+import threading
+import os
+
+# Thread-safe lock and global in-memory cache for page-level OCR caching
+_cache_lock = threading.Lock()
+_global_cache = None
+
+def load_global_cache():
+    global _global_cache
+    if _global_cache is not None:
+        return _global_cache
+    
+    global_cache_path = config.DATA_DIR / "ocr_page_cache.json"
+    if global_cache_path.exists():
+        try:
+            with open(global_cache_path, "r", encoding="utf-8") as f:
+                _global_cache = json.load(f)
+        except Exception as e:
+            print(f"[Warning] Failed to load global OCR page cache: {e}")
+            _global_cache = {}
+    else:
+        _global_cache = {}
+    return _global_cache
+
+def save_global_cache():
+    global_cache_path = config.DATA_DIR / "ocr_page_cache.json"
+    try:
+        os.makedirs(os.path.dirname(global_cache_path), exist_ok=True)
+        with open(global_cache_path, "w", encoding="utf-8") as f:
+            json.dump(_global_cache, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[Warning] Failed to save global OCR page cache: {e}")
 
 class PDFBookParser:
     def __init__(self, pdf_path: Path, volume: str, api_key: str, checkpoint_id: str = None):
@@ -36,12 +67,29 @@ class PDFBookParser:
     def parse_page(self, page_index: int) -> dict:
         """
         Renders a specific PDF page to PNG and sends it to Gemini for Multimodal OCR.
+        Uses global page-level cache based on the MD5 hash of the rendered PNG bytes.
         """
         page = self.doc.load_page(page_index)
         
         # Render page to PNG at 150 DPI for good readability without huge file size
         pix = page.get_pixmap(dpi=150)
         img_bytes = pix.tobytes("png")
+        img_hash = hashlib.md5(img_bytes).hexdigest()
+        
+        # Check global cache thread-safely
+        with _cache_lock:
+            cache = load_global_cache()
+            if img_hash in cache:
+                cached_data = cache[img_hash]
+                print(f"[Cache Hit] Page {page_index + 1} of {self.pdf_path.name} loaded from global page cache.")
+                return {
+                    "volume": self.volume,
+                    "pdf_page_index": page_index,
+                    "pdf_page_number": page_index + 1,
+                    "physical_page": cached_data.get("physical_page"),
+                    "lesson_name": cached_data.get("lesson_name"),
+                    "text": cached_data.get("text", "")
+                }
         
         prompt = """
         Đây là hình ảnh trang sách giáo khoa Toán lớp 3, thuộc bộ sách "Kết nối tri thức với cuộc sống".
@@ -78,7 +126,7 @@ class PDFBookParser:
                 
                 # Parse JSON response
                 data = json.loads(response.text)
-                return {
+                parsed_result = {
                     "volume": self.volume,
                     "pdf_page_index": page_index,
                     "pdf_page_number": page_index + 1,
@@ -86,6 +134,18 @@ class PDFBookParser:
                     "lesson_name": data.get("lesson_name"),
                     "text": data.get("text", "")
                 }
+                
+                # Write to global cache thread-safely
+                with _cache_lock:
+                    cache = load_global_cache()
+                    cache[img_hash] = {
+                        "physical_page": parsed_result["physical_page"],
+                        "lesson_name": parsed_result["lesson_name"],
+                        "text": parsed_result["text"]
+                    }
+                    save_global_cache()
+                    
+                return parsed_result
             except Exception as e:
                 error_msg = str(e)
                 print(f"[Warning] Retry {attempt + 1}/{max_attempts} for page {page_index} of {self.pdf_path.name}: {error_msg}")
@@ -93,6 +153,7 @@ class PDFBookParser:
                     return {
                         "volume": self.volume,
                         "pdf_page_index": page_index,
+                        "pdf_page_number": page_index + 1,
                         "physical_page": None,
                         "lesson_name": None,
                         "text": ""
