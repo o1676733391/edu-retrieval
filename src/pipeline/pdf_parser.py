@@ -318,6 +318,17 @@ class PDFBookParser:
             try:
                 with open(checkpoint_path, "r", encoding="utf-8") as f:
                     checkpoint_data = json.load(f)
+                
+                # Safe casting of physical_page in loaded checkpoint data
+                for key, val in checkpoint_data.items():
+                    if isinstance(val, dict) and "physical_page" in val:
+                        p_page = val["physical_page"]
+                        if p_page is not None:
+                            try:
+                                val["physical_page"] = int(p_page)
+                            except (ValueError, TypeError):
+                                val["physical_page"] = None
+                                
                 print(f"Resuming OCR on {self.pdf_path.name} from checkpoint. Found {len(checkpoint_data)} completed pages.")
             except Exception as e:
                 print(f"[Warning] Failed to load checkpoint: {e}")
