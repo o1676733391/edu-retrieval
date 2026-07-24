@@ -167,10 +167,115 @@ class PDFBookParser:
                     sleep_time = 2 ** attempt
                 time.sleep(sleep_time)
 
+    def parse_batch(self, batch: list[int]) -> list[dict]:
+        """
+        Extracts the specified page indexes into a temp PDF, sends it to Gemini,
+        and returns a list of parsed page dictionaries.
+        """
+        # Render PNG bytes of each page in the batch to calculate their MD5 hashes
+        img_hashes = []
+        for idx in batch:
+            page = self.doc.load_page(idx)
+            pix = page.get_pixmap(dpi=150)
+            img_bytes = pix.tobytes("png")
+            img_hashes.append(hashlib.md5(img_bytes).hexdigest())
+
+        # Extract pages into a temporary PDF
+        batch_doc = fitz.open()
+        for idx in batch:
+            batch_doc.insert_pdf(self.doc, from_page=idx, to_page=idx)
+        pdf_bytes = batch_doc.write()
+        batch_doc.close()
+
+        # Build page list string for prompt
+        pdf_page_numbers = [idx + 1 for idx in batch]
+
+        prompt = f"""
+        Đây là tài liệu PDF chứa {len(batch)} trang sách giáo khoa Toán lớp 3.
+        Các trang này tương ứng với các số trang PDF (bắt đầu từ 1) trong sách gốc lần lượt là: {pdf_page_numbers}.
+
+        Hãy thực hiện OCR và phân tích nội dung cho từng trang theo đúng thứ tự.
+        Trả về kết quả dưới dạng một danh sách JSON (array) chứa đúng {len(batch)} phần tử tương ứng theo thứ tự gửi.
+        Mỗi phần tử phải tuân thủ cấu trúc sau:
+        {{
+          "pdf_page_number": <số trang PDF gốc tương ứng trong danh sách {pdf_page_numbers}>,
+          "physical_page": <số trang vật lý được in trên trang sách, hoặc null nếu không có>,
+          "lesson_name": "tên bài học tương ứng của trang này",
+          "text": "toàn bộ văn bản và câu hỏi toán học của trang này"
+        }}
+        """
+
+        # Retry logic for network/rate-limit issues
+        max_attempts = 5
+        for attempt in range(max_attempts):
+            try:
+                response = self.client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=[
+                        types.Part.from_bytes(
+                            data=pdf_bytes,
+                            mime_type="application/pdf"
+                        ),
+                        prompt
+                    ],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json"
+                    )
+                )
+
+                # Parse JSON response
+                results = json.loads(response.text)
+                if not isinstance(results, list) or len(results) != len(batch):
+                    raise ValueError(f"Gemini returned {len(results) if isinstance(results, list) else 'non-list'} items, expected {len(batch)}.")
+
+                parsed_results = []
+                for k, item in enumerate(results):
+                    idx = batch[k]
+                    parsed_results.append({
+                        "volume": self.volume,
+                        "pdf_page_index": idx,
+                        "pdf_page_number": idx + 1,
+                        "physical_page": item.get("physical_page"),
+                        "lesson_name": item.get("lesson_name"),
+                        "text": item.get("text", "")
+                    })
+
+                # Write to global cache thread-safely
+                with _cache_lock:
+                    cache = load_global_cache()
+                    for k, res in enumerate(parsed_results):
+                        h = img_hashes[k]
+                        cache[h] = {
+                            "physical_page": res["physical_page"],
+                            "lesson_name": res["lesson_name"],
+                            "text": res["text"]
+                        }
+                    save_global_cache()
+
+                return parsed_results
+
+            except Exception as e:
+                error_msg = str(e)
+                print(f"[Warning] Retry {attempt + 1}/{max_attempts} for batch {pdf_page_numbers} of {self.pdf_path.name}: {error_msg}")
+                if attempt == max_attempts - 1:
+                    # Fallback to page-by-page OCR if the batch fails consistently
+                    print(f"Batch {pdf_page_numbers} failed consistently. Falling back to page-by-page OCR...")
+                    fallback_results = []
+                    for idx in batch:
+                        fallback_results.append(self.parse_page(idx))
+                    return fallback_results
+
+                # If rate limited, sleep longer
+                if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+                    sleep_time = 20 * (attempt + 1)
+                    print(f"Rate limit hit on batch {pdf_page_numbers}. Sleeping for {sleep_time} seconds before retrying...")
+                else:
+                    sleep_time = 2 ** attempt
+                time.sleep(sleep_time)
+
     def parse_all_pages(self, max_workers: int = 2) -> list[dict]:
         """
-        Parses all pages in parallel, resuming from a checkpoint if exists,
-        and saving progress incrementally to handle interruptions.
+        Parses all pages. Groups missing pages into batches to minimize API requests and avoid rate limits.
         """
         pages_count = len(self.doc)
         results = [None] * pages_count
@@ -198,44 +303,71 @@ class PDFBookParser:
                 results[i] = checkpoint_data[str_i]
                 completed_pages += 1
                 
+        # Check global page cache for remaining pages before calling API
+        # (This avoids loading/rendering images if they are already in the global cache)
+        with _cache_lock:
+            cache = load_global_cache()
+            
+        pages_to_check = [i for i in range(pages_count) if results[i] is None]
+        if pages_to_check:
+            print(f"Checking global page cache for {len(pages_to_check)} pages of {self.pdf_path.name}...")
+            for idx in pages_to_check:
+                # We need the image hash to check cache, so we must load the page and render it
+                page = self.doc.load_page(idx)
+                pix = page.get_pixmap(dpi=150)
+                img_bytes = pix.tobytes("png")
+                img_hash = hashlib.md5(img_bytes).hexdigest()
+                
+                with _cache_lock:
+                    if img_hash in cache:
+                        cached_data = cache[img_hash]
+                        results[idx] = {
+                            "volume": self.volume,
+                            "pdf_page_index": idx,
+                            "pdf_page_number": idx + 1,
+                            "physical_page": cached_data.get("physical_page"),
+                            "lesson_name": cached_data.get("lesson_name"),
+                            "text": cached_data.get("text", "")
+                        }
+                        completed_pages += 1
+                        checkpoint_data[str(idx)] = results[idx]
+                        
+        # Write updated checkpoint
+        if completed_pages > 0:
+            try:
+                with open(checkpoint_path, "w", encoding="utf-8") as f:
+                    json.dump(checkpoint_data, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                print(f"[Warning] Failed to write checkpoint: {e}")
+
         # If all pages are already completed, skip the executor
         if completed_pages < pages_count:
             pages_to_process = [i for i in range(pages_count) if results[i] is None]
-            print(f"OCR progress: {completed_pages}/{pages_count} pages completed. Processing remaining {len(pages_to_process)} pages...")
+            print(f"OCR progress: {completed_pages}/{pages_count} pages completed. Processing remaining {len(pages_to_process)} pages in batches...")
             
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                # Only submit pages that are not already completed
-                future_to_index = {
-                    executor.submit(self.parse_page, i): i 
-                    for i in pages_to_process
-                }
+            # Group pages_to_process into batches of size N (e.g. 5)
+            batch_size = 5
+            batches = [pages_to_process[i:i + batch_size] for i in range(0, len(pages_to_process), batch_size)]
+            
+            # Process batches sequentially to be gentle on RPM rate limits, or with max_workers=2
+            for batch_idx, batch in enumerate(batches):
+                print(f"Processing batch {batch_idx + 1}/{len(batches)}: pages {[idx + 1 for idx in batch]}")
+                batch_results = self.parse_batch(batch)
                 
-                for future in as_completed(future_to_index):
-                    i = future_to_index[future]
-                    try:
-                        result = future.result()
-                        results[i] = result
-                        print(f"Processed page {i+1}/{pages_count} of {self.pdf_path.name}")
-                    except Exception as e:
-                        print(f"Error processing page {i} of {self.pdf_path.name}: {e}")
-                        results[i] = {
-                            "volume": self.volume,
-                            "pdf_page_index": i,
-                            "pdf_page_number": i + 1,
-                            "physical_page": None,
-                            "lesson_name": None,
-                            "text": ""
-                        }
+                # Merge batch results
+                for res in batch_results:
+                    idx = res["pdf_page_index"]
+                    results[idx] = res
+                    checkpoint_data[str(idx)] = res
                     
-                    # Incrementally update checkpoint data and write to file
-                    checkpoint_data[str(i)] = results[i]
-                    try:
-                        with open(checkpoint_path, "w", encoding="utf-8") as f:
-                            json.dump(checkpoint_data, f, ensure_ascii=False, indent=2)
-                    except Exception as e:
-                        print(f"[Warning] Failed to write checkpoint: {e}")
+                # Save checkpoint after each batch
+                try:
+                    with open(checkpoint_path, "w", encoding="utf-8") as f:
+                        json.dump(checkpoint_data, f, ensure_ascii=False, indent=2)
+                except Exception as e:
+                    print(f"[Warning] Failed to write checkpoint: {e}")
         else:
-            print(f"All {pages_count} pages loaded successfully from checkpoint.")
+            print(f"All {pages_count} pages loaded successfully from cache/checkpoint.")
 
         # Apply sequential fallback post-processing
         processed_results = self.post_process_pages(results)
