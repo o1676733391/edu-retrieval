@@ -151,7 +151,7 @@ def run_ingest(
             try:
                 # Use file_id or target_path stem as checkpoint name to handle interruptions
                 checkpoint_id = file_id if file_id else target_path.stem
-                parser = PDFBookParser(target_path, volume=str(volume), api_key=config.GEMINI_API_KEY, checkpoint_id=checkpoint_id)
+                parser = PDFBookParser(target_path, volume=str(volume), api_key=config.GEMINI_API_KEY, checkpoint_id=checkpoint_id, force_ocr=force_ocr)
                 new_pages = parser.parse_all_pages()
                 
                 # Check for update/merge mode vs override mode
@@ -207,7 +207,7 @@ def run_ingest(
                 # Parse Vol 1
                 vol1_path = config.DATA_SAMPLES_DIR / "toan-3-tap-1.pdf"
                 if vol1_path.exists():
-                    parser1 = PDFBookParser(vol1_path, volume="1", api_key=config.GEMINI_API_KEY, checkpoint_id="toan-3-tap-1")
+                    parser1 = PDFBookParser(vol1_path, volume="1", api_key=config.GEMINI_API_KEY, checkpoint_id="toan-3-tap-1", force_ocr=force_ocr)
                     pages1 = parser1.parse_all_pages()
                     processed_pages.extend(pages1)
                 else:
@@ -216,7 +216,7 @@ def run_ingest(
                 # Parse Vol 2
                 vol2_path = config.DATA_SAMPLES_DIR / "toan-3-tap-2.pdf"
                 if vol2_path.exists():
-                    parser2 = PDFBookParser(vol2_path, volume="2", api_key=config.GEMINI_API_KEY, checkpoint_id="toan-3-tap-2")
+                    parser2 = PDFBookParser(vol2_path, volume="2", api_key=config.GEMINI_API_KEY, checkpoint_id="toan-3-tap-2", force_ocr=force_ocr)
                     pages2 = parser2.parse_all_pages()
                     processed_pages.extend(pages2)
                 else:

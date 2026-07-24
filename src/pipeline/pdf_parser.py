@@ -50,10 +50,11 @@ def save_global_cache():
         print(f"[Warning] Failed to save global OCR page cache: {e}")
 
 class PDFBookParser:
-    def __init__(self, pdf_path: Path, volume: str, api_key: str, checkpoint_id: str = None):
+    def __init__(self, pdf_path: Path, volume: str, api_key: str, checkpoint_id: str = None, force_ocr: bool = False):
         self.pdf_path = pdf_path
         self.volume = volume
         self.api_key = api_key
+        self.force_ocr = force_ocr
         
         # Unique checkpoint ID
         if checkpoint_id:
@@ -86,25 +87,26 @@ class PDFBookParser:
         img_hash = hashlib.md5(img_bytes).hexdigest()
         
         # Check global cache thread-safely
-        with _cache_lock:
-            cache = load_global_cache()
-            if img_hash in cache:
-                cached_data = cache[img_hash]
-                print(f"[Cache Hit] Page {page_index + 1} of {self.pdf_path.name} loaded from global page cache.")
-                physical_page = cached_data.get("physical_page")
-                if physical_page is not None:
-                    try:
-                        physical_page = int(physical_page)
-                    except (ValueError, TypeError):
-                        physical_page = None
-                return {
-                    "volume": self.volume,
-                    "pdf_page_index": page_index,
-                    "pdf_page_number": page_index + 1,
-                    "physical_page": physical_page,
-                    "lesson_name": cached_data.get("lesson_name"),
-                    "text": cached_data.get("text", "")
-                }
+        if not self.force_ocr:
+            with _cache_lock:
+                cache = load_global_cache()
+                if img_hash in cache:
+                    cached_data = cache[img_hash]
+                    print(f"[Cache Hit] Page {page_index + 1} of {self.pdf_path.name} loaded from global page cache.")
+                    physical_page = cached_data.get("physical_page")
+                    if physical_page is not None:
+                        try:
+                            physical_page = int(physical_page)
+                        except (ValueError, TypeError):
+                            physical_page = None
+                    return {
+                        "volume": self.volume,
+                        "pdf_page_index": page_index,
+                        "pdf_page_number": page_index + 1,
+                        "physical_page": physical_page,
+                        "lesson_name": cached_data.get("lesson_name"),
+                        "text": cached_data.get("text", "")
+                    }
         
         prompt = """
         Đây là hình ảnh trang sách giáo khoa Toán lớp 3, thuộc bộ sách "Kết nối tri thức với cuộc sống".
@@ -315,23 +317,30 @@ class PDFBookParser:
         # 2. Try loading existing checkpoint
         checkpoint_data = {}
         if checkpoint_path.exists():
-            try:
-                with open(checkpoint_path, "r", encoding="utf-8") as f:
-                    checkpoint_data = json.load(f)
-                
-                # Safe casting of physical_page in loaded checkpoint data
-                for key, val in checkpoint_data.items():
-                    if isinstance(val, dict) and "physical_page" in val:
-                        p_page = val["physical_page"]
-                        if p_page is not None:
-                            try:
-                                val["physical_page"] = int(p_page)
-                            except (ValueError, TypeError):
-                                val["physical_page"] = None
-                                
-                print(f"Resuming OCR on {self.pdf_path.name} from checkpoint. Found {len(checkpoint_data)} completed pages.")
-            except Exception as e:
-                print(f"[Warning] Failed to load checkpoint: {e}")
+            if self.force_ocr:
+                try:
+                    checkpoint_path.unlink()
+                    print(f"Force OCR enabled. Cleaned up existing checkpoint: {checkpoint_path.name}")
+                except Exception as e:
+                    print(f"[Warning] Failed to delete checkpoint on Force OCR: {e}")
+            else:
+                try:
+                    with open(checkpoint_path, "r", encoding="utf-8") as f:
+                        checkpoint_data = json.load(f)
+                    
+                    # Safe casting of physical_page in loaded checkpoint data
+                    for key, val in checkpoint_data.items():
+                        if isinstance(val, dict) and "physical_page" in val:
+                            p_page = val["physical_page"]
+                            if p_page is not None:
+                                try:
+                                    val["physical_page"] = int(p_page)
+                                except (ValueError, TypeError):
+                                    val["physical_page"] = None
+                                    
+                    print(f"Resuming OCR on {self.pdf_path.name} from checkpoint. Found {len(checkpoint_data)} completed pages.")
+                except Exception as e:
+                    print(f"[Warning] Failed to load checkpoint: {e}")
                 
         # Populate results with already completed pages from checkpoint
         completed_pages = 0
@@ -343,38 +352,39 @@ class PDFBookParser:
                 
         # Check global page cache for remaining pages before calling API
         # (This avoids loading/rendering images if they are already in the global cache)
-        with _cache_lock:
-            cache = load_global_cache()
-            
-        pages_to_check = [i for i in range(pages_count) if results[i] is None]
-        if pages_to_check:
-            print(f"Checking global page cache for {len(pages_to_check)} pages of {self.pdf_path.name}...")
-            for idx in pages_to_check:
-                # We need the image hash to check cache, so we must load the page and render it
-                page = self.doc.load_page(idx)
-                pix = page.get_pixmap(dpi=150)
-                img_bytes = pix.tobytes("png")
-                img_hash = hashlib.md5(img_bytes).hexdigest()
+        if not self.force_ocr:
+            with _cache_lock:
+                cache = load_global_cache()
                 
-                with _cache_lock:
-                    if img_hash in cache:
-                        cached_data = cache[img_hash]
-                        physical_page = cached_data.get("physical_page")
-                        if physical_page is not None:
-                            try:
-                                physical_page = int(physical_page)
-                            except (ValueError, TypeError):
-                                physical_page = None
-                        results[idx] = {
-                            "volume": self.volume,
-                            "pdf_page_index": idx,
-                            "pdf_page_number": idx + 1,
-                            "physical_page": physical_page,
-                            "lesson_name": cached_data.get("lesson_name"),
-                            "text": cached_data.get("text", "")
-                        }
-                        completed_pages += 1
-                        checkpoint_data[str(idx)] = results[idx]
+            pages_to_check = [i for i in range(pages_count) if results[i] is None]
+            if pages_to_check:
+                print(f"Checking global page cache for {len(pages_to_check)} pages of {self.pdf_path.name}...")
+                for idx in pages_to_check:
+                    # We need the image hash to check cache, so we must load the page and render it
+                    page = self.doc.load_page(idx)
+                    pix = page.get_pixmap(dpi=150)
+                    img_bytes = pix.tobytes("png")
+                    img_hash = hashlib.md5(img_bytes).hexdigest()
+                    
+                    with _cache_lock:
+                        if img_hash in cache:
+                            cached_data = cache[img_hash]
+                            physical_page = cached_data.get("physical_page")
+                            if physical_page is not None:
+                                try:
+                                    physical_page = int(physical_page)
+                                except (ValueError, TypeError):
+                                    physical_page = None
+                            results[idx] = {
+                                "volume": self.volume,
+                                "pdf_page_index": idx,
+                                "pdf_page_number": idx + 1,
+                                "physical_page": physical_page,
+                                "lesson_name": cached_data.get("lesson_name"),
+                                "text": cached_data.get("text", "")
+                            }
+                            completed_pages += 1
+                            checkpoint_data[str(idx)] = results[idx]
                         
         # Write updated checkpoint
         if completed_pages > 0:
