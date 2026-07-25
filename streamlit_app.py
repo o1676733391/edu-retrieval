@@ -40,7 +40,7 @@ QUY TẮC BẮT BUỘC KHÔNG ĐƯỢC VI PHẠM (STRICT GROUNDED RAG):
 1. Bạn CHỈ ĐƯỢC PHÉP trả lời và chấm điểm dựa hoàn toàn vào thông tin bài toán có trong phần "Ngữ cảnh tài liệu SGK" dưới đây.
 2. KHÔNG ĐƯỢC tự ý bịa thêm kiến thức nằm ngoài ngữ cảnh.
 3. Nếu phần "Ngữ cảnh tài liệu SGK" KHÔNG CHỨA bài toán hay dữ liệu cần thiết để chấm điểm, bạn BẮT BUỘC phải trả lời chính xác câu thông báo sau và KHÔNG in phần trích dẫn nguồn:
-"⚠️ Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
+"[!] Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
 
 Ngữ cảnh tài liệu SGK:
 {context}
@@ -69,7 +69,7 @@ Hãy thực hiện chấm điểm theo các bước sau:
 Giọng điệu phải luôn luôn ấm áp, sử dụng các xưng hô gần gũi như "thầy/cô", "con", "bạn nhỏ", "phụ huynh".
 
 ---
-📖 **Nguồn tham khảo:**
+Nguon tham khao:
 {citation_block}
 """
 
@@ -80,7 +80,7 @@ QUY TẮC BẮT BUỘC KHÔNG ĐƯỢC VI PHẠM (STRICT GROUNDED RAG):
 1. Bạn CHỈ ĐƯỢC PHÉP giải thích dựa hoàn toàn vào thông tin định nghĩa, khái niệm có trong phần "Ngữ cảnh tài liệu SGK" dưới đây.
 2. KHÔNG ĐƯỢC sử dụng kiến thức bên ngoài hay tri thức sẵn có của LLM để tự suy đoán nếu ngữ cảnh không nói đến.
 3. Nếu phần "Ngữ cảnh tài liệu SGK" KHÔNG CHỨA thông tin định nghĩa hoặc khái niệm phù hợp để giải thích câu hỏi của người dùng, bạn BẮT BUỘC phải trả lời chính xác câu thông báo sau và KHÔNG in phần trích dẫn nguồn:
-"⚠️ Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
+"[!] Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
 
 Ngữ cảnh tài liệu SGK:
 {context}
@@ -95,13 +95,13 @@ Câu hỏi của học sinh/phụ huynh về khái niệm lý thuyết:
 4. **Kiểm tra mức độ hiểu bài:** Cuối bài giảng, hãy đưa ra 1-2 câu hỏi đố vui hoặc thử thách nhỏ cực kỳ đơn giản để học sinh tự trả lời nhằm củng cố bài học.
 
 ### ĐỊNH DẠNG PHẢN HỒI BẮT BUỘC (chỉ khi Ngữ cảnh SGK CÓ chứa câu trả lời):
-- **💡 Khái niệm đơn giản:** Định nghĩa ngắn gọn nhất bằng hình ảnh ví dụ (ví dụ: "Phép nhân là gì nhỉ? Nó giống như việc con cộng nhiều nhóm đồ vật có số lượng bằng nhau lại đấy!").
-- **🍎 Ví dụ thực tế:** Đưa ra câu chuyện hoặc hình ảnh minh họa sinh động.
-- **📝 Tóm tắt quy tắc:** Khung ghi nhớ ngắn gọn, dễ thuộc lòng (ví dụ: "Để tìm một phần mấy của một số, ta lấy số đó chia cho số phần nhé!").
-- **⭐ Thử thách nhỏ cho con:** 1 câu hỏi tương tác ngắn để con suy nghĩ và trả lời.
+- **[Khai niem don gian]:** Định nghĩa ngắn gọn nhất bằng hình ảnh ví dụ (ví dụ: "Phép nhân là gì nhỉ? Nó giống như việc con cộng nhiều nhóm đồ vật có số lượng bằng nhau lại đấy!").
+- **[Vi du thuc te]:** Đưa ra câu chuyện hoặc hình ảnh minh họa sinh động.
+- **[Tom tat quy tac]:** Khung ghi nhớ ngắn gọn, dễ thuộc lòng (ví dụ: "Để tìm một phần mấy của một số, ta lấy số đó chia cho số phần nhé!").
+- **[Thu thach nho cho con]:** 1 câu hỏi tương tác ngắn để con suy nghĩ và trả lời.
 
 ---
-📖 **Nguồn tham khảo:**
+Nguon tham khao:
 {citation_block}
 """
 
@@ -112,7 +112,7 @@ QUY TẮC BẮT BUỘC KHÔNG ĐƯỢC VI PHẠM (STRICT GROUNDED RAG):
 1. Bạn CHỈ ĐƯỢC PHÉP tạo các bài toán mới mô phỏng theo đúng các dạng toán có trong phần "Ngữ cảnh tài liệu SGK" dưới đây.
 2. KHÔNG ĐƯỢC tự ý bịa ra các dạng toán lạ hay kiến thức nằm ngoài phạm vi các trang sách được cung cấp.
 3. Nếu phần "Ngữ cảnh tài liệu SGK" KHÔNG CHỨA bài tập mẫu hoặc thông tin toán học liên quan để tạo đề mới, bạn BẮT BUỘC phải trả lời chính xác câu thông báo sau và KHÔNG in phần trích dẫn nguồn:
-"⚠️ Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
+"[!] Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
 
 Ngữ cảnh tài liệu SGK:
 {context}
@@ -130,8 +130,8 @@ Yêu cầu tạo bài tập của người dùng:
    - **Bài 3 (Vận dụng cao - Thử thách):** Bài toán đòi hỏi tư duy logic hơn một chút nhưng vẫn nằm trong phạm vi kiến thức đang học.
 
 ### ĐỊNH DẠNG PHẢN HỒI BẮT BUỘC (chỉ khi Ngữ cảnh SGK CÓ chứa câu trả lời):
-- **🌟 Bộ bài tập tự luyện:** Liệt kê rõ đề bài Bài 1, Bài 2, Bài 3.
-- **🔑 Hướng dẫn & Đáp án (Dành cho Phụ huynh/Học sinh tự kiểm tra):** Sử dụng thẻ HTML `<details>` để ẩn lời giải chi tiết của từng bài, giúp con tự làm trước rồi mới xem đáp án.
+- **[Bo bai tap tu luyen]:** Liệt kê rõ đề bài Bài 1, Bài 2, Bài 3.
+- **[Huong dan & Dap an (Danh cho Phu huynh/Hoc sinh tu kiem tra)]:** Sử dụng thẻ HTML `<details>` để ẩn lời giải chi tiết của từng bài, giúp con tự làm trước rồi mới xem đáp án.
   Mẫu:
   <details>
   <summary>Xem gợi ý giải Bài 1</summary>
@@ -139,7 +139,7 @@ Yêu cầu tạo bài tập của người dùng:
   </details>
 
 ---
-📖 **Dựa trên bài học nguồn:**
+Dua tren bai hoc nguon:
 {citation_block}
 """
 
@@ -149,7 +149,7 @@ def get_suggestive_tutor_prompt(context: str, user_query: str, citation_block: s
 QUY TẮC BẮT BUỘC KHÔNG ĐƯỢC VI PHẠM (STRICT GROUNDED RAG):
 1. Bạn CHỈ ĐƯỢC PHÉP gợi ý dựa hoàn toàn vào thông tin và phương pháp giải toán có trong phần "Ngữ cảnh tài liệu SGK" dưới đây.
 2. Nếu phần "Ngữ cảnh tài liệu SGK" KHÔNG CHỨA bài toán hay phương pháp giải phù hợp, bạn BẮT BUỘC phải trả lời chính xác câu thông báo sau và KHÔNG in phần trích dẫn nguồn:
-"⚠️ Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
+"[!] Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
 
 Ngữ cảnh tài liệu SGK:
 {context}
@@ -177,7 +177,7 @@ def get_direct_solver_prompt(context: str, user_query: str, citation_block: str)
 QUY TẮC BẮT BUỘC KHÔNG ĐƯỢC VI PHẠM (STRICT GROUNDED RAG):
 1. Bạn CHỈ ĐƯỢC PHÉP giải toán dựa hoàn toàn vào thông tin và phương pháp giải có trong phần "Ngữ cảnh tài liệu SGK" dưới đây.
 2. Nếu phần "Ngữ cảnh tài liệu SGK" KHÔNG CHỨA thông tin cần để giải bài toán, bạn BẮT BUỘC phải trả lời chính xác câu thông báo sau và KHÔNG in phần trích dẫn nguồn:
-"⚠️ Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
+"[!] Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
 
 Ngữ cảnh tài liệu SGK:
 {context}
@@ -191,14 +191,14 @@ Câu hỏi/Bài toán cần giải:
 3. **Trích dẫn nguồn sách giáo khoa:** Kết thúc bằng phần trích dẫn nguồn chuẩn RAG.
 
 ### ĐỊNH DẠNG PHẢN HỒI BẮT BUỘC (chỉ khi Ngữ cảnh SGK CÓ chứa câu trả lời):
-- **🎯 Đáp số nhanh:** **[Kết quả / Đáp số chính xác]**
-- **📝 Bài giải chi tiết:**
+- **[Dap so nhanh]:** **[Kết quả / Đáp số chính xác]**
+- **[Bai giai chi tiet]:**
   - **Bước 1:** [Lời giải và phép tính] -> [Giải thích lý do/công thức]
   - **Bước 2:** [Lời giải và phép tính] -> [Giải thích lý do/công thức]
   - **Đáp số:** [Đầy đủ đáp số kèm đơn vị]
 
 ---
-📖 **Nguồn tham khảo:**
+Nguon tham khao:
 {citation_block}
 """
 
@@ -209,7 +209,7 @@ QUY TẮC BẮT BUỘC KHÔNG ĐƯỢC VI PHẠM (STRICT GROUNDED RAG):
 1. Bạn CHỈ ĐƯỢC PHÉP trả lời dựa hoàn toàn vào thông tin có trong phần "Ngữ cảnh tài liệu SGK" dưới đây.
 2. KHÔNG ĐƯỢC sử dụng kiến thức bên ngoài hay tri thức sẵn có của LLM để tự suy đoán nếu ngữ cảnh không nói đến.
 3. Nếu phần "Ngữ cảnh tài liệu SGK" KHÔNG CHỨA thông tin trực tiếp liên quan hoặc KHÔNG ĐỦ để trả lời câu hỏi của người dùng, bạn BẮT BUỘC phải trả lời chính xác câu thông báo sau và KHÔNG in phần trích dẫn nguồn:
-"⚠️ Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
+"[!] Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này."
 
 Ngữ cảnh tài liệu SGK:
 {context}
@@ -223,7 +223,7 @@ Yêu cầu định dạng câu trả lời (chỉ khi Ngữ cảnh SGK CÓ chứ
 3. Cuối câu trả lời, in rõ phần trích dẫn nguồn theo đúng định dạng sau:
 
 ---
-📖 **Nguồn tham khảo:**
+Nguon tham khao:
 {citation_block}
 """
 
@@ -514,7 +514,7 @@ with tab_chatbot:
                         )
                         full_response = response.text
                     else:
-                        full_response = f"Dựa trên tài liệu tra cứu được:\n\n{joined_context}\n\n---\n📖 **Nguồn tham khảo:**\n{citation_block}"
+                        full_response = f"Dựa trên tài liệu tra cứu được:\n\n{joined_context}\n\n---\nNguon tham khao:\n{citation_block}"
                         
                     st.markdown(full_response)
                     st.session_state.messages.append({"role": "assistant", "content": full_response})

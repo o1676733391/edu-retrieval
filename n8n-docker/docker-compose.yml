@@ -12,7 +12,7 @@ services:
       - GENERIC_TIMEZONE=America/New_York
       - TZ=America/New_York
     entrypoint: ["/bin/sh", "-c"]
-    command: "n8n import:workflow --input=/home/node/workflows/rag_pedagogical_workflow.json && n8n start"
+    command: "n8n start"
 
 volumes:
   n8n_data:

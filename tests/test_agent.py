@@ -31,10 +31,10 @@ class TestEducationalAssistant(unittest.TestCase):
 
     def test_extract_hints_variations(self):
         queries = [
-            ("trang 15 t 2", 15, "2"),
-            ("tr. 98 tập i", 98, "1"),
-            ("p. 14 tập hai", 14, "2"),
-            ("trang một trăm lẻ năm tập 1", None, "1")  # text numbers are not matched, which is expected
+            ("trang 15 tap 2", 15, "2"),          # ASCII non-accented volume abbr
+            ("tr. 98 tập i", 98, "1"),             # tr. prefix + Vietnamese Roman numeral
+            ("trang 14 tập hai", 14, "2"),         # Vietnamese word "hai" for vol 2
+            ("trang một trăm lẻ năm tập 1", None, "1")  # text numbers not matched (expected)
         ]
         for q, expected_page, expected_vol in queries:
             page, vol = extract_hints_from_query(q)

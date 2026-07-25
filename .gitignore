@@ -22,6 +22,9 @@ data/ocr_checkpoints/
 data/uploads/
 *.db
 *.sqlite3
+*.sqlite
+n8n-docker/n8n_db_backup.sqlite
+
 
 # IDEs & System
 .vscode/

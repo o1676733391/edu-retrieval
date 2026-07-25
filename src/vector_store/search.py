@@ -9,18 +9,45 @@ def extract_hints_from_query(query: str) -> tuple[int | None, str | None]:
     """
     page_hint = None
     volume_hint = None
-    
-    # 1. Page extraction (e.g., "trang 15", "tr. 15", "t 15", "p. 15")
-    page_match = re.search(r'\b(trang|tr|t|p)\.?\s*(\d+)\b', query, re.IGNORECASE)
+
+    # 1. Volume extraction FIRST (before page) to prevent page regex from stealing
+    #    the digit from patterns like "tập 2" / "tap 2".
+    # Strategy: match "t[aậ]p <digit>" only when it appears in a BOOK context:
+    #   (a) preceded by "sgk" (e.g. "sgk tập 2", "sgk tap 2")
+    #   (b) at the end of the sentence (e.g. query ends with "tập 2")
+    #   (c) followed by a page cue (e.g. "tập 2 trang 16")
+    #   (d) "sgk1" / "sgk2" shorthand
+    # This prevents "luyện tập 1" from being interpreted as "volume 1".
+    _vol_context = r'(?:sgk\s+|\bsách\s+)'
+    _vol_pattern_1 = r't[aậ]p\s*(?:1\b|i\b|m[oộ]t\b)'
+    _vol_pattern_2 = r't[aậ]p\s*(?:2\b|ii\b|hai\b)'
+    # (a) preceded by sgk/sach keyword
+    if re.search(_vol_context + _vol_pattern_1, query, re.IGNORECASE):
+        volume_hint = "1"
+    elif re.search(_vol_context + _vol_pattern_2, query, re.IGNORECASE):
+        volume_hint = "2"
+    # (b) at end of query (optionally with trailing punctuation/spaces)
+    elif re.search(_vol_pattern_1 + r'\s*$', query.rstrip(), re.IGNORECASE):
+        volume_hint = "1"
+    elif re.search(_vol_pattern_2 + r'\s*$', query.rstrip(), re.IGNORECASE):
+        volume_hint = "2"
+    # (c) followed by a page cue
+    elif re.search(_vol_pattern_1 + r'\s+(?:trang|tr)\.?\s*\d+', query, re.IGNORECASE):
+        volume_hint = "1"
+    elif re.search(_vol_pattern_2 + r'\s+(?:trang|tr)\.?\s*\d+', query, re.IGNORECASE):
+        volume_hint = "2"
+    # (d) "sgk1"/"sgk2" shorthand (no space)
+    elif re.search(r'\bsgk\s*1\b', query, re.IGNORECASE):
+        volume_hint = "1"
+    elif re.search(r'\bsgk\s*2\b', query, re.IGNORECASE):
+        volume_hint = "2"
+
+    # 2. Page extraction: only accept unambiguous keywords "trang" or "tr."
+    #    Avoid single-letter "t" and "p" which falsely match "tập" digit.
+    page_match = re.search(r'\b(trang|tr)\.?\s*(\d+)\b', query, re.IGNORECASE)
     if page_match:
         page_hint = int(page_match.group(2))
-        
-    # 2. Volume extraction (e.g., "tập 1", "tập I", "tập một", "tập 2", "tập II", "tập hai")
-    if re.search(r'\b(?:tập|t)\s*(?:1|i|một)\b', query, re.IGNORECASE):
-        volume_hint = "1"
-    elif re.search(r'\b(?:tập|t)\s*(?:2|ii|hai)\b', query, re.IGNORECASE):
-        volume_hint = "2"
-        
+
     return page_hint, volume_hint
 
 def tokenize_vietnamese(text: str, include_bigrams: bool = False) -> list[str]:
@@ -261,6 +288,9 @@ def multi_domain_retrieval(
     embedding_fn = get_embedding_function()
     query_emb_fn = get_embedding_function(task_type="RETRIEVAL_QUERY")
     
+    # Extract page and volume hints from query
+    page_hint, volume_hint = extract_hints_from_query(query)
+    
     all_candidate_results = []
     existing_cols = [c.name for c in client.list_collections()]
     
@@ -308,6 +338,19 @@ def multi_domain_retrieval(
             filters = []
             if meta_tag_filter:
                 filters.append({"$or": [{"file_id": meta_tag_filter}, {"tag_name_uuid": meta_tag_filter}]})
+                
+            if volume_hint:
+                filters.append({"volume": str(volume_hint)})
+                
+            if page_hint:
+                page_window = [page_hint - 1, page_hint, page_hint + 1]
+                page_window = [p for p in page_window if p >= 0]
+                page_clauses = []
+                for p in page_window:
+                    page_clauses.append({"physical_page": p})
+                    page_clauses.append({"pdf_page_number": p})
+                    page_clauses.append({"pdf_page_index": p - 1 if p > 0 else 0})
+                filters.append({"$or": page_clauses})
                 
             if from_date:
                 from_ts = parse_to_epoch(from_date)

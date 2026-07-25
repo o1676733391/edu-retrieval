@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Union
 from src import config
 from src.pipeline.ingest import run_ingest
 from src.vector_store.search import book_knowledge_search, multi_domain_retrieval
@@ -86,7 +86,7 @@ class IngestionPayloadRequest(BaseModel):
 
 class RetrievalPayloadRequest(BaseModel):
     text: str
-    tag_name_uuids: List[str]
+    tag_name_uuids: Union[List[str], str]
     type: Optional[str] = "doc"  # "doc" | "qa"
     from_date: Optional[str] = None
     to_date: Optional[str] = None
@@ -447,22 +447,58 @@ def retrieval_endpoint(req: RetrievalPayloadRequest):
     with type targeting (doc | qa) and date-range filtering (from_date -> to_date).
     """
     try:
+        import json
+        tag_uuids = req.tag_name_uuids
+        if isinstance(tag_uuids, str):
+            v_stripped = tag_uuids.strip()
+            if v_stripped.startswith("[") and v_stripped.endswith("]"):
+                try:
+                    parsed = json.loads(v_stripped)
+                    if isinstance(parsed, list):
+                        tag_uuids = [str(item).strip("'\" ") for item in parsed]
+                    else:
+                        tag_uuids = [v_stripped.strip("'\" ")]
+                except Exception:
+                    tag_uuids = [v_stripped.strip("'\" ")]
+            else:
+                tag_uuids = [v_stripped.strip("'\" ")]
+        elif isinstance(tag_uuids, list):
+            cleaned = []
+            for item in tag_uuids:
+                if isinstance(item, str):
+                    item_stripped = item.strip()
+                    if item_stripped.startswith("[") and item_stripped.endswith("]"):
+                        try:
+                            parsed = json.loads(item_stripped)
+                            if isinstance(parsed, list):
+                                cleaned.extend([str(x).strip("'\" ") for x in parsed])
+                                continue
+                        except Exception:
+                            pass
+                    cleaned.append(item_stripped.strip("'\" "))
+                else:
+                    cleaned.append(str(item))
+            tag_uuids = cleaned
+
+        print(f"[Retrieval API] Incoming Request - text: '{req.text}', tag_name_uuids: {tag_uuids}, type: {req.type}")
         results = multi_domain_retrieval(
             query=req.text,
-            tag_name_uuids=req.tag_name_uuids,
+            tag_name_uuids=tag_uuids,
             doc_type=req.type or "doc",
             from_date=req.from_date,
             to_date=req.to_date,
             top_k=req.top_k or 5
         )
+        print(f"[Retrieval API] Outgoing Response - found {len(results)} results")
         return {
             "text": req.text,
-            "tag_name_uuids": req.tag_name_uuids,
+            "tag_name_uuids": tag_uuids,
             "type": req.type or "doc",
             "total_results": len(results),
             "results": results
         }
     except Exception as e:
+        print(f"[Retrieval API] Error occurred: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
