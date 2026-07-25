@@ -486,7 +486,9 @@ with tab_chatbot:
                     citation_block = "\n".join(citations) if citations else "- Tài liệu hệ thống"
                     
                     # Strict Grounded RAG Check: Guardrail if no documents found
-                    if not rag_results or joined_context == "Không tìm thấy đoạn văn bản trùng khớp.":
+                    # Only default and theory_explanation require RAG lookup validation
+                    needs_rag_lookup = agent_mode in ["default", "theory_explanation"]
+                    if needs_rag_lookup and (not rag_results or joined_context == "Không tìm thấy đoạn văn bản trùng khớp."):
                         full_response = "⚠️ Rất tiếc, trong cơ sở dữ liệu SGK hiện tại không tìm thấy bài học hoặc thông tin phù hợp để trả lời câu hỏi này."
                     elif config.GEMINI_API_KEY or config.USE_VERTEXAI:
                         from google import genai
@@ -1405,7 +1407,13 @@ with tab_live_test:
             "exercise_generator",
             "suggestive_tutor",
             "direct_solver",
-            "verifier"
+            "verifier",
+            "verifier_default_teacher",
+            "verifier_barem_review",
+            "verifier_theory_explanation",
+            "verifier_exercise_generator",
+            "verifier_suggestive_tutor",
+            "verifier_direct_solver"
         ]
         
         for agent_name in agent_override_options:

@@ -26,6 +26,11 @@ def extract_hints_from_query(query: str) -> tuple[int | None, str | None]:
         volume_hint = "1"
     elif re.search(_vol_context + _vol_pattern_2, query, re.IGNORECASE):
         volume_hint = "2"
+    # (a2) followed by sgk/sach/vở keyword
+    elif re.search(_vol_pattern_1 + r'\s+(?:sgk|sách|vở)', query, re.IGNORECASE):
+        volume_hint = "1"
+    elif re.search(_vol_pattern_2 + r'\s+(?:sgk|sách|vở)', query, re.IGNORECASE):
+        volume_hint = "2"
     # (b) at end of query (optionally with trailing punctuation/spaces)
     elif re.search(_vol_pattern_1 + r'\s*$', query.rstrip(), re.IGNORECASE):
         volume_hint = "1"

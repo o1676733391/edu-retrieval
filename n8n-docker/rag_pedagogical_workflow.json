@@ -125,7 +125,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "let joinedContext = \"\";\nlet citationBlock = \"\";\nlet retrievalFailed = false;\n\nconst selectedAgent = $json.selected_agent;\nconst requiresRag = $json.requires_rag;\n\nif (requiresRag) {\n  joinedContext = $json.joined_context || \"\";\n  citationBlock = $json.citation_block || \"\";\n  retrievalFailed = ($json.retrieval_failed === true || $json.retrieval_failed === \"true\");\n}\n\nconst securityNode = $('Security & Sanitization Gate').first().json.body;\nconst userPrompt = securityNode.prompt;\nconst overrides = securityNode.prompt_overrides || {};\n\nlet activePrompts = {};\ntry {\n  activePrompts = $('Fetch Active Prompts').first().json;\n} catch (e) {\n  activePrompts = {};\n}\n\nconst getPrompt = (agentName, defaultVal) => {\n  return overrides[agentName] || activePrompts[agentName] || defaultVal;\n};\n\nlet finalAgent = selectedAgent;\nlet finalRequires = requiresRag;\nif (securityNode.agent_mode && securityNode.agent_mode !== \"default\" && securityNode.agent_mode !== \"\") {\n  finalAgent = securityNode.agent_mode;\n  if (securityNode.agent_mode !== \"default\") {\n    finalRequires = true;\n  }\n}\n\nconst RAG_FALLBACK = \"[!] Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này.\";\nconst RAG_RULE_PREFIX = \"QUY TẮC BẮT BUỘC KHÔNG ĐƯỢC VI PHẠM (STRICT GROUNDED RAG):\\nNếu Ngữ cảnh tài liệu SGK KHÔNG CHỨA thông tin cần thiết, BẮT BUỘC trả lời chính xác: \\\"\" + RAG_FALLBACK + \"\\\" và KHÔNG in phần trích dẫn nguồn.\\\n\\\nNgữ cảnh tài liệu SGK:\\\n\" + joinedContext + \"\\\n\\\n\";\n\n// --- Default Teacher ---\nlet defaultTeacherPrompt = \"\";\nconst baseDefaultTeacher = getPrompt('default_teacher', 'Bạn là một giáo viên tiểu học thân thiện, tận tụy và dịu dàng.');\nif (finalRequires) {\n  defaultTeacherPrompt = baseDefaultTeacher + \"\\n\\n\" + RAG_RULE_PREFIX +\n    \"Câu hỏi của người dùng:\\n\" + userPrompt +\n    \"\\n\\nYêu cầu định dạng câu trả lời (chỉ khi Ngữ cảnh SGK CÓ chứa câu trả lời):\\n1. Trả lời thân thiện, giải thích từng bước logic toán học rõ ràng.\\n2. Trả lời hoàn toàn bằng tiếng Việt.\\n3. Cuối câu trả lời, in rõ phần trích dẫn nguồn theo đúng định dạng sau:\\n\\n---\\n **Nguồn tham khảo:**\\n\" + citationBlock;\n} else {\n  defaultTeacherPrompt = baseDefaultTeacher + \" Hãy trò chuyện thân thiện, trả lời tự nhiên hoặc giải thích toán học đơn giản cho câu hỏi của người dùng.\\n\\nCâu hỏi/Lời nhắn của người dùng:\\n\" + userPrompt + \"\\n\\nYêu cầu:\\n1. Trả lời thân thiện, ngọt ngào bằng tiếng Việt.\\n2. Không cần trích dẫn nguồn sách giáo khoa.\";\n}\n\n// --- Barem Reviewer ---\nconst baseBarem = getPrompt('barem_review', 'Bạn là một giáo viên tiểu học thân thiện, tận tụy và công tâm. Nhiệm vụ của bạn là chấm điểm và nhận xét bài làm của học sinh tiểu học (lớp 3) dựa trên Barem điểm và đáp án chuẩn được cung cấp.');\nconst baremPrompt = baseBarem + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi/Yêu cầu chấm điểm (chứa Đề bài, Barem & Bài làm của học sinh):\\n\" + userPrompt +\n  \"\\n\\nHãy thực hiện chấm điểm và đưa ra nhận xét sư phạm chi tiết, ấm áp.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + citationBlock;\n\n// --- Theory Explainer ---\nconst baseTheory = getPrompt('theory_explanation', 'Bạn là một giáo viên tiểu học có tài giảng dạy trực quan, sinh động. Nhiệm vụ của bạn là giải thích các định nghĩa, khái niệm toán học lớp 3 từ sách giáo khoa một cách dễ hiểu nhất.');\nconst theoryPrompt = baseTheory + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi của học sinh/phụ huynh về khái niệm lý thuyết:\\n\" + userPrompt +\n  \"\\n\\nGiải thích trực quan, gần gũi, dùng ví dụ thực tế cho trẻ em 8-9 tuổi.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + citationBlock;\n\n// --- Exercise Generator ---\nconst baseExercise = getPrompt('exercise_generator', 'Bạn là một chuyên gia biên soạn tài liệu toán tiểu học. Nhiệm vụ của bạn là tạo ra các bài tập tự luyện mới dựa trên ngữ cảnh bài học trong sách giáo khoa.');\nconst exercisePrompt = baseExercise + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Yêu cầu tạo bài tập của người dùng:\\n\" + userPrompt +\n  \"\\n\\nTạo bộ bài tập 3 mức độ (Nhận biết, Vận dụng, Vận dụng cao) phù hợp với học sinh lớp 3.\\n\\n---\\n **Dựa trên bài học nguồn:**\\n\" + citationBlock;\n\n// --- Suggestive Tutor ---\nconst baseTutor = getPrompt('suggestive_tutor', 'Bạn là một Gia sư Toán Tiểu học có phương pháp dạy học tương tác, gợi mở (Socratic method). TUYỆT ĐỐI KHÔNG đưa ra lời giải đầy đủ hay đáp số cuối cùng ngay lập tức. Hãy dắt tay học sinh tự tìm ra đáp án.');\nconst tutorPrompt = baseTutor + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi cần gợi ý của học sinh:\\n\" + userPrompt +\n  \"\\n\\nHướng dẫn từng bước bằng câu hỏi gợi mở, không đưa đáp số trực tiếp.\";\n\n// --- Direct Solver ---\nconst baseSolver = getPrompt('direct_solver', 'Bạn là một Trợ lý Giải Toán Tiểu học nhanh chóng và chính xác. Nhiệm vụ của bạn là đưa ra kết quả cuối cùng ngay lập tức, sau đó trình bày bài giải chi tiết theo đúng chuẩn sư phạm lớp 3.');\nconst solverPrompt = baseSolver + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi/Bài toán cần giải:\\n\" + userPrompt +\n  \"\\n\\n[Ans] Đưa ra đáp số nhanh trước, sau đó trình bày từng bước giải chi tiết.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + citationBlock;\n\nreturn {\n  prompt: userPrompt,\n  joined_context: joinedContext,\n  citation_block: citationBlock,\n  selected_agent: finalAgent,\n  requires_rag: finalRequires,\n  retrieval_failed: retrievalFailed,\n  default_teacher_prompt: defaultTeacherPrompt,\n  barem_prompt: baremPrompt,\n  theory_prompt: theoryPrompt,\n  exercise_prompt: exercisePrompt,\n  tutor_prompt: tutorPrompt,\n  solver_prompt: solverPrompt\n};"
+        "jsCode": "let joinedContext = \"\";\nlet citationBlock = \"\";\nlet retrievalFailed = false;\n\nconst selectedAgent = $json.selected_agent;\nconst requiresRag = $json.requires_rag;\n\nif (requiresRag) {\n  joinedContext = $json.joined_context || \"\";\n  citationBlock = $json.citation_block || \"\";\n  retrievalFailed = ($json.retrieval_failed === true || $json.retrieval_failed === \"true\");\n}\n\nconst securityNode = $('Security & Sanitization Gate').first().json.body;\nconst userPrompt = securityNode.prompt;\nconst overrides = securityNode.prompt_overrides || {};\n\nlet activePrompts = {};\ntry {\n  activePrompts = $('Fetch Active Prompts').first().json;\n} catch (e) {\n  activePrompts = {};\n}\n\nconst getPrompt = (agentName, defaultVal) => {\n  return overrides[agentName] || activePrompts[agentName] || defaultVal;\n};\n\nlet finalAgent = selectedAgent;\nlet finalRequires = requiresRag;\nif (securityNode.agent_mode && securityNode.agent_mode !== \"default\" && securityNode.agent_mode !== \"\") {\n  finalAgent = securityNode.agent_mode;\n  if (securityNode.agent_mode !== \"default\") {\n    finalRequires = true;\n  }\n}\n\nlet ragGuardrailTriggered = false;\nif (finalRequires && retrievalFailed) {\n  // Only default and theory_explanation require RAG lookup validation\n  if (finalAgent === \"default\" || finalAgent === \"theory_explanation\") {\n    ragGuardrailTriggered = true;\n  }\n}\n\nconst RAG_FALLBACK = \"[!] Rất tiếc, trong các trang SGK được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này.\";\nconst RAG_RULE_PREFIX = \"QUY TẮC BẮT BUỘC KHÔNG ĐƯỢC VI PHẠM (STRICT GROUNDED RAG):\\nNếu Ngữ cảnh tài liệu SGK KHÔNG CHỨA thông tin cần thiết, BẮT BUỘC trả lời chính xác: \\\"\" + RAG_FALLBACK + \"\\\" và KHÔNG in phần trích dẫn nguồn.\\\n\\\nNgữ cảnh tài liệu SGK:\\\n\" + joinedContext + \"\\\n\\\n\";\n\n// --- Default Teacher ---\nlet defaultTeacherPrompt = \"\";\nconst baseDefaultTeacher = getPrompt('default_teacher', 'Bạn là một giáo viên tiểu học thân thiện, tận tụy và dịu dàng.');\nif (finalRequires) {\n  defaultTeacherPrompt = baseDefaultTeacher + \"\\n\\n\" + RAG_RULE_PREFIX +\n    \"Câu hỏi của người dùng:\\n\" + userPrompt +\n    \"\\n\\nYêu cầu định dạng câu trả lời (chỉ khi Ngữ cảnh SGK CÓ chứa câu trả lời):\\n1. Trả lời thân thiện, giải thích từng bước logic toán học rõ ràng.\\n2. Trả lời hoàn toàn bằng tiếng Việt.\\n3. Cuối câu trả lời, in rõ phần trích dẫn nguồn theo đúng định dạng sau:\\n\\n---\\n **Nguồn tham khảo:**\\n\" + citationBlock;\n} else {\n  defaultTeacherPrompt = baseDefaultTeacher + \" Hãy trò chuyện thân thiện, trả lời tự nhiên hoặc giải thích toán học đơn giản cho câu hỏi của người dùng.\\n\\nCâu hỏi/Lời nhắn của người dùng:\\n\" + userPrompt + \"\\n\\nYêu cầu:\\n1. Trả lời thân thiện, ngọt ngào bằng tiếng Việt.\\n2. Không cần trích dẫn nguồn sách giáo khoa.\";\n}\n\n// --- Barem Reviewer ---\nconst baseBarem = getPrompt('barem_review', 'Bạn là một giáo viên tiểu học thân thiện, tận tụy và công tâm. Nhiệm vụ của bạn là chấm điểm và nhận xét bài làm của học sinh tiểu học (lớp 3) dựa trên Barem điểm và đáp án chuẩn được cung cấp.');\nconst baremPrompt = baseBarem + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi/Yêu cầu chấm điểm (chứa Đề bài, Barem & Bài làm của học sinh):\\n\" + userPrompt +\n  \"\\n\\nHãy thực hiện chấm điểm và đưa ra nhận xét sư phạm chi tiết, ấm áp.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + citationBlock;\n\n// --- Theory Explainer ---\nconst baseTheory = getPrompt('theory_explanation', 'Bạn là một giáo viên tiểu học có tài giảng dạy trực quan, sinh động. Nhiệm vụ của bạn là giải thích các định nghĩa, khái niệm toán học lớp 3 từ sách giáo khoa một cách dễ hiểu nhất.');\nconst theoryPrompt = baseTheory + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi của học sinh/phụ huynh về khái niệm lý thuyết:\\n\" + userPrompt +\n  \"\\n\\nGiải thích trực quan, gần gũi, dùng ví dụ thực tế cho trẻ em 8-9 tuổi.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + citationBlock;\n\n// --- Exercise Generator ---\nconst baseExercise = getPrompt('exercise_generator', 'Bạn là một chuyên gia biên soạn tài liệu toán tiểu học. Nhiệm vụ của bạn là tạo ra các bài tập tự luyện mới dựa trên ngữ cảnh bài học trong sách giáo khoa.');\nconst exercisePrompt = baseExercise + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Yêu cầu tạo bài tập của người dùng:\\n\" + userPrompt +\n  \"\\n\\nTạo bộ bài tập 3 mức độ (Nhận biết, Vận dụng, Vận dụng cao) phù hợp với học sinh lớp 3.\\n\\n---\\n **Dựa trên bài học nguồn:**\\n\" + citationBlock;\n\n// --- Suggestive Tutor ---\nconst baseTutor = getPrompt('suggestive_tutor', 'Bạn là một Gia sư Toán Tiểu học có phương pháp dạy học tương tác, gợi mở (Socratic method). TUYỆT ĐỐI KHÔNG đưa ra lời giải đầy đủ hay đáp số cuối cùng ngay lập tức. Hãy dắt tay học sinh tự tìm ra đáp án.');\nconst tutorPrompt = baseTutor + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi cần gợi ý của học sinh:\\n\" + userPrompt +\n  \"\\n\\nHướng dẫn từng bước bằng câu hỏi gợi mở, không đưa đáp số trực tiếp.\";\n\n// --- Direct Solver ---\nconst baseSolver = getPrompt('direct_solver', 'Bạn là một Trợ lý Giải Toán Tiểu học nhanh chóng và chính xác. Nhiệm vụ của bạn là đưa ra kết quả cuối cùng ngay lập tức, sau đó trình bày bài giải chi tiết theo đúng chuẩn sư phạm lớp 3.');\nconst solverPrompt = baseSolver + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi/Bài toán cần giải:\\n\" + userPrompt +\n  \"\\n\\n[Ans] Đưa ra đáp số nhanh trước, sau đó trình bày từng bước giải chi tiết.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + citationBlock;\n\nreturn {\n  prompt: userPrompt,\n  joined_context: joinedContext,\n  citation_block: citationBlock,\n  selected_agent: finalAgent,\n  requires_rag: finalRequires,\n  retrieval_failed: retrievalFailed,\n  rag_guardrail_triggered: ragGuardrailTriggered,\n  default_teacher_prompt: defaultTeacherPrompt,\n  barem_prompt: baremPrompt,\n  theory_prompt: theoryPrompt,\n  exercise_prompt: exercisePrompt,\n  tutor_prompt: tutorPrompt,\n  solver_prompt: solverPrompt\n};"
       },
       "id": "d44d0c11-9a74-4b53-85f0-61d06e23114c",
       "name": "Merge Context Nodes",
@@ -147,17 +147,7 @@
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ $json.requires_rag }}",
-              "rightValue": "",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            },
-            {
-              "id": "c2",
-              "leftValue": "={{ $json.retrieval_failed }}",
+              "leftValue": "={{ $json.rag_guardrail_triggered }}",
               "rightValue": "",
               "operator": {
                 "type": "boolean",
@@ -390,52 +380,14 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "let draftResponse = \"\";\nconst agents = ['Suggestive Tutor', 'Direct Solver', 'Default Teacher', 'Theory Explainer', 'Exercise Generator', 'Barem Reviewer'];\nfor (const agent of agents) {\n  try {\n    const nodeRes = $(agent).first().json;\n    if (nodeRes && nodeRes.text) {\n      draftResponse = nodeRes.text;\n      break;\n    }\n  } catch (e) {}\n}\n\nconst securityNode = $('Security & Sanitization Gate').first().json.body;\nconst overrides = securityNode.prompt_overrides || {};\n\nlet activePrompts = {};\ntry {\n  activePrompts = $('Fetch Active Prompts').first().json;\n} catch (e) {\n  activePrompts = {};\n}\n\nconst getPrompt = (agentName, defaultVal) => {\n  return overrides[agentName] || activePrompts[agentName] || defaultVal;\n};\n\nconst baseVerifier = getPrompt('verifier', 'Bạn là một Giáo sư/Chuyên gia Kiểm định Chất lượng Giáo dục Tiểu học.');\n\nconst mergeNode = $('Merge Context Nodes').first().json;\nconst requiresRag = mergeNode.requires_rag;\nconst selectedAgent = mergeNode.selected_agent || 'default';\n\n// --- INTENT-AWARE VERIFIER PROMPT ---\nlet verifierPrompt = \"\";\n\nif (!requiresRag) {\n  // Intent: social chat / general question — no RAG grounding needed\n  verifierPrompt = \"Bạn là một chuyên gia kiểm định chất lượng phản hồi của giáo viên tiểu học.\\n\\n\" +\n    \"**Loại câu hỏi:** Trò chuyện xã giao / câu hỏi tổng quát (KHÔNG cần tra cứu sách giáo khoa).\\n\\n\" +\n    \"Câu hỏi/Lời nhắn của người dùng:\\n\" + mergeNode.prompt + \"\\n\\n\" +\n    \"Phản hồi nháp của Giáo viên:\\n\" + draftResponse + \"\\n\\n\" +\n    \"QUY TẮC ĐÁNH GIÁ (cho loại trò chuyện xã giao):\\n\" +\n    \"1. Phản hồi có thân thiện, ấm áp, phù hợp với vai trò giáo viên tiểu học không?\\n\" +\n    \"2. Phản hồi có đáp lại đúng ý định/nội dung câu hỏi của người dùng không?\\n\" +\n    \"3. Phản hồi có tự nhiên, không cứng nhắc hay máy móc không?\\n\" +\n    \"4. KHÔNG cần kiểm tra grounding SGK — đây là cuộc trò chuyện thông thường.\\n\" +\n    \"5. Nếu phản hồi phù hợp và thân thiện → APPROVED. Nếu có điều chỉnh nhỏ cần thiết → CORRECTED.\\n\\n\" +\n    \"Định dạng đầu ra bắt buộc (JSON):\\n\" +\n    \"{\\n  \\\"status\\\": \\\"APPROVED\\\" | \\\"CORRECTED\\\",\\n  \\\"reason\\\": \\\"Giải thích ngắn gọn\\\",\\n  \\\"corrected_response\\\": \\\"Phản hồi đã chỉnh sửa (chỉ khi CORRECTED)\\\"\\n}\";\n} else {\n  // Intent: math/textbook question — full RAG grounding check required\n  const agentLabel = {\n    'suggestive_tutor': 'Gia sư Gợi mở (Suggestive Tutor)',\n    'direct_solver': 'Giải Toán Trực tiếp (Direct Solver)',\n    'theory_explanation': 'Giảng Lý thuyết (Theory Explainer)',\n    'exercise_generator': 'Tạo Bài tập (Exercise Generator)',\n    'barem_reviewer': 'Chấm điểm Barem (Barem Reviewer)',\n    'default': 'Giáo viên Mặc định (Default Teacher)'\n  }[selectedAgent] || selectedAgent;\n\n  verifierPrompt = baseVerifier + \"\\n\\n\" +\n    \"**Loại câu hỏi:** Câu hỏi toán học / nội dung SGK (CẦN kiểm tra grounding).\\n\" +\n    \"**Giáo viên trợ lý đã dùng:** \" + agentLabel + \"\\n\\n\" +\n    \"Ngữ cảnh tài liệu SGK gốc:\\n\" + mergeNode.joined_context + \"\\n\\n\" +\n    \"Câu hỏi của người dùng:\\n\" + mergeNode.prompt + \"\\n\\n\" +\n    \"Phản hồi nháp của Giáo viên trợ lý:\\n\" + draftResponse + \"\\n\\n\" +\n    \"QUY TẮC ĐÁNH GIÁ (cho câu hỏi toán học/SGK):\\n\" +\n    \"1. **Kiểm tra Grounding:** Phản hồi có bám sát Ngữ cảnh tài liệu SGK không? Nếu SGK trống và phản hồi đã là câu thông báo [!] → APPROVED ngay.\\n\" +\n    \"2. **Kiểm tra tính chính xác:** Các phép tính, kết quả, định nghĩa có đúng không?\\n\" +\n    \"3. **Kiểm tra phong cách sư phạm:** Có phù hợp với vai trò \" + agentLabel + \" không? (ví dụ: Suggestive Tutor KHÔNG được đưa ra đáp án trực tiếp).\\n\" +\n    \"4. **Kiểm tra định dạng:** Có đúng format yêu cầu của loại giáo viên đó không?\\n\" +\n    \"Nếu tất cả đều ổn → APPROVED. Nếu có lỗi cần sửa → CORRECTED và viết lại đầy đủ.\\n\\n\" +\n    \"Định dạng đầu ra bắt buộc (JSON):\\n\" +\n    \"{\\n  \\\"status\\\": \\\"APPROVED\\\" | \\\"CORRECTED\\\",\\n  \\\"reason\\\": \\\"Giải thích ngắn gọn lý do đánh giá\\\",\\n  \\\"corrected_response\\\": \\\"Nội dung phản hồi đã chỉnh sửa (chỉ khi CORRECTED)\\\"\\n}\";\n}\n\nreturn {\n  prompt: mergeNode.prompt,\n  draft_response: draftResponse,\n  joined_context: mergeNode.joined_context,\n  citation_block: mergeNode.citation_block,\n  requires_rag: requiresRag,\n  selected_agent: selectedAgent,\n  verifier_prompt: verifierPrompt\n};"
+        "jsCode": "let responseText = \"\";\nconst agents = ['Suggestive Tutor', 'Direct Solver', 'Default Teacher', 'Theory Explainer', 'Exercise Generator', 'Barem Reviewer'];\nfor (const agent of agents) {\n  try {\n    const nodeRes = $(agent).first().json;\n    if (nodeRes && nodeRes.text) {\n      responseText = nodeRes.text;\n      break;\n    }\n  } catch (e) {}\n}\nreturn { output: responseText };"
       },
       "id": "d44d0c11-9a74-4b53-85f0-61d06e23114e",
-      "name": "Aggregate Expert Draft",
+      "name": "Format Final Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         1680,
-        220
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "http://host.docker.internal:8080/api/llm",
-        "sendBody": true,
-        "specifyBody": "keypair",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "prompt",
-              "value": "={{ $json.verifier_prompt }}"
-            }
-          ]
-        }
-      },
-      "id": "e6a2d21f-82b1-419b-a0b3-96b05be17036",
-      "name": "Verifier QA Agent",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [
-        1860,
-        220
-      ]
-    },
-    {
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "let outputText = \"\";\nlet draftResponse = \"\";\ntry {\n  const draftNode = 'Aggregate Expert Draft';\n  draftResponse = $(draftNode).first().json.draft_response;\n  \n  const verifierNode = 'Verifier QA Agent';\n  const verifierRes = $(verifierNode).first().json;\n  const text = verifierRes.text;\n  const cleanText = text.replace(/```json/gi, \"\").replace(/```/gi, \"\").trim();\n  const parsed = JSON.parse(cleanText);\n  \n  if (parsed.status === \"APPROVED\") {\n    outputText = draftResponse;\n  } else {\n    outputText = parsed.corrected_response || draftResponse;\n  }\n} catch (e) {\n  outputText = draftResponse;\n}\n\nreturn { output: outputText };"
-      },
-      "id": "d44d0c11-9a74-4b53-85f0-61d06e231151",
-      "name": "Parse Final Verified Output",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2040,
         220
       ]
     },
@@ -468,7 +420,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const body = $('Webhook').first().json.body;\n\nconst allowlist = [\n  \"planner\",\n  \"default_teacher\",\n  \"barem_review\",\n  \"theory_explanation\",\n  \"exercise_generator\",\n  \"suggestive_tutor\",\n  \"direct_solver\",\n  \"verifier\"\n];\n\nlet sanitizedOverrides = {};\nif (body.prompt_overrides && typeof body.prompt_overrides === 'object') {\n  for (const [key, value] of Object.entries(body.prompt_overrides)) {\n    if (allowlist.includes(key)) {\n      sanitizedOverrides[key] = value;\n    }\n  }\n}\n\nreturn {\n  body: {\n    prompt: body.prompt || \"\",\n    subject: body.subject || \"math\",\n    agent_mode: body.agent_mode || \"default\",\n    prompt_profile: body.prompt_profile || \"default\",\n    prompt_version: body.prompt_version || null,\n    prompt_overrides: sanitizedOverrides\n  }\n};"
+        "jsCode": "const body = $('Webhook').first().json.body;\n\nconst allowlist = [\n  \"planner\",\n  \"default_teacher\",\n  \"barem_review\",\n  \"theory_explanation\",\n  \"exercise_generator\",\n  \"suggestive_tutor\",\n  \"direct_solver\",\n  \"verifier\",\n  \"verifier_default_teacher\",\n  \"verifier_barem_review\",\n  \"verifier_theory_explanation\",\n  \"verifier_exercise_generator\",\n  \"verifier_suggestive_tutor\",\n  \"verifier_direct_solver\"\n];\n\nlet sanitizedOverrides = {};\nif (body.prompt_overrides && typeof body.prompt_overrides === 'object') {\n  for (const [key, value] of Object.entries(body.prompt_overrides)) {\n    if (allowlist.includes(key)) {\n      sanitizedOverrides[key] = value;\n    }\n  }\n}\n\nreturn {\n  body: {\n    prompt: body.prompt || \"\",\n    subject: body.subject || \"math\",\n    agent_mode: body.agent_mode || \"default\",\n    prompt_profile: body.prompt_profile || \"default\",\n    prompt_version: body.prompt_version || null,\n    prompt_overrides: sanitizedOverrides\n  }\n};"
       },
       "id": "e4a2d8a1-c24c-4a37-b4bc-7c3e1e82ef60",
       "name": "Security & Sanitization Gate",
@@ -668,7 +620,7 @@
       "main": [
         [
           {
-            "node": "Aggregate Expert Draft",
+            "node": "Format Final Output",
             "type": "main",
             "index": 0
           }
@@ -679,7 +631,7 @@
       "main": [
         [
           {
-            "node": "Aggregate Expert Draft",
+            "node": "Format Final Output",
             "type": "main",
             "index": 0
           }
@@ -690,7 +642,7 @@
       "main": [
         [
           {
-            "node": "Aggregate Expert Draft",
+            "node": "Format Final Output",
             "type": "main",
             "index": 0
           }
@@ -701,7 +653,7 @@
       "main": [
         [
           {
-            "node": "Aggregate Expert Draft",
+            "node": "Format Final Output",
             "type": "main",
             "index": 0
           }
@@ -712,7 +664,7 @@
       "main": [
         [
           {
-            "node": "Aggregate Expert Draft",
+            "node": "Format Final Output",
             "type": "main",
             "index": 0
           }
@@ -723,36 +675,14 @@
       "main": [
         [
           {
-            "node": "Aggregate Expert Draft",
+            "node": "Format Final Output",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Aggregate Expert Draft": {
-      "main": [
-        [
-          {
-            "node": "Verifier QA Agent",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Verifier QA Agent": {
-      "main": [
-        [
-          {
-            "node": "Parse Final Verified Output",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse Final Verified Output": {
+    "Format Final Output": {
       "main": [
         [
           {

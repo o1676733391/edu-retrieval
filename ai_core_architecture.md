@@ -100,7 +100,7 @@ The system implements strict separation of concerns to handle visually-intensive
 ### F. LLM Completion Proxying & n8n Orchestration
 *   **n8n Workflow Execution:** The workflow begins with a POST Webhook receiving the user query. The `Security & Sanitization Gate` validates credentials and sanitizes prompt overrides, then the `Fetch Active Prompts` node retrieves the active system instructions from the Prompt Registry DB. The Planner Agent evaluates user intent using these fetched system prompts, and decides which expert to call and whether RAG is necessary.
 *   **FastAPI LLM Proxy (`/api/llm`):** All LLM calls (Planner Agent, Expert Agents, and Verifier Agent) are routed through the FastAPI backend's `/api/llm` endpoint. The proxy dynamically determines the backend provider based on configuration (`USE_VERTEXAI` or `GEMINI_API_KEY`) and calls Gemini (`gemini-2.5-flash`) securely using the container's GCP environment, removing credential management overhead from n8n.
-*   **RAG Routing & Guardrails:** If context retrieval is required, n8n invokes `/api/retrieval`. If retrieval returns no results, a strict fallback guardrail instantly triggers to prevent LLM hallucinations.
+*   **RAG Routing & Guardrails:** If context retrieval is required, n8n invokes `/api/retrieval`. If retrieval returns no results, a strict fallback guardrail triggers only for lookup-dependent modules (`default` and `theory_explanation`) to prevent LLM hallucinations. For all other modules (`barem_review`, `exercise_generator`, `suggestive_tutor`, `direct_solver`), the workflow bypasses this guardrail, allowing them to solve, tutor, grade, or generate questions without failure.
 *   **Multi-Agent Expert Routing:** The Orchestrator Router dynamically splits flows based on the Planner Agent's decision:
     - `barem_review` -> `Barem Reviewer`
     - `theory_explanation` -> `Theory Explainer`
@@ -108,7 +108,7 @@ The system implements strict separation of concerns to handle visually-intensive
     - `suggestive_tutor` -> `Suggestive Tutor`
     - `direct_solver` -> `Direct Solver`
     - `default` -> `Default Teacher`
-*   **Verifier & Socratic Tone Quality Control:** Once an expert generates a draft response, the `Verifier QA Agent` validates it against the retrieved context to verify grounding and ensure an encouraging pedagogical tone suitable for primary school students before outputting the final result.
+*   **Verifier & Socratic Tone Quality Control:** Once an expert generates a draft response, the `Verifier QA Agent` validates it using a module-specific verifier prompt template fetched dynamically from the database (`verifier_default_teacher`, `verifier_barem_review`, `verifier_theory_explanation`, `verifier_exercise_generator`, `verifier_suggestive_tutor`, `verifier_direct_solver`). The verifier validates grounding (where applicable), mathematical accuracy, compliance with pedagogical style constraints (e.g., ensuring no direct answers are in Socratic tutor drafts), and formatting before outputting the final result.
 
 ---
 
