@@ -21,7 +21,7 @@ graph TD
         OCR -->|JSON Output| Validate["Parse Page Index, Lesson Name & Text"]
         Validate -->|Cache| JSON_Cache[("processed_book_data.json")]
         JSON_Cache -->|Embeddings text-embedding-004| Embed["Embeddings Engine"]
-        Embed -->|Index into Isolated Collection| DB[("ChromaDB Server (docker_chroma:8000)")]
+        Embed -->|Index into Isolated Collection| DB[("Vector Store Backend<br>(ChromaDB / Qdrant)")]
     end
 
     subgraph API_Endpoints ["2. REST API Web Services (Port 8080)"]
@@ -58,8 +58,8 @@ graph TD
     end
 
     subgraph Visualization_UI ["5. Database View & Comparison"]
-        Preview_API -->|Query by Field & Role| DB_View["Query Chroma Collection"]
-        DB_View -->|Raw Text & Metadata| UI_Compare["VS Code ChromaDB Viewer / Streamlit UI"]
+        Preview_API -->|Query by Field & Role| DB_View["Query Vector Store Collection"]
+        DB_View -->|Raw Text & Metadata| UI_Compare["VS Code DB Viewer / Streamlit UI"]
         UI_Compare -->|Manual Validation| Compare["Visual Comparison (Original vs Ingested)"]
     end
 ```
@@ -70,10 +70,14 @@ graph TD
 
 The system implements strict separation of concerns to handle visually-intensive textbook layouts and fulfill access control policies:
 
-### A. Field-Based Collection Isolation
-*   To prevent cross-subject interference (e.g., math queries retrieving science formulas), documents are isolated at the **Collection level** in ChromaDB.
+### A. Field-Based Collection Isolation & Switchable Backend
+*   To prevent cross-subject interference (e.g., math queries retrieving science formulas), documents are isolated at the **Collection level** in the Vector Database.
 *   The subject name (passed as `field`) serves as a suffix for the collection name (e.g., `toan_3_curriculum_math`, `toan_3_curriculum_science`).
 *   During ingestion and retrieval, the system connects only to the collection associated with the requested `field`.
+*   **Switchable Backend Support (ChromaDB / Qdrant):** 
+    - Controlled via the `VECTOR_DB_BACKEND` environment variable.
+    - In **Qdrant** mode, string IDs are dynamically mapped to deterministic UUIDv5 point IDs, and dictionary filters are recursively converted to Qdrant's nested filter conditions.
+    - Under `VECTOR_DB_BACKEND=qdrant`, ChromaDB is completely bypassed, and vice versa when set to `chromadb`.
 
 ### B. Role-Based Access Control (RBAC)
 *   **Roles:** The system supports three standard roles: `student`, `teacher`, and `admin`.
@@ -85,7 +89,7 @@ The system implements strict separation of concerns to handle visually-intensive
     *   `student` -> `{"visibility": "public"}`
     *   `teacher` -> `{"$or": [{"visibility": "public"}, {"visibility": "teacher_only"}]}`
     *   `admin` -> No visibility filter (accesses all data).
-*   This filtering is enforced at the database query level (`where` clause in ChromaDB) to guarantee that users cannot access vectors outside their authorized scope.
+*   This filtering is enforced at the database query level (`where` clause in the active Vector Store) to guarantee that users cannot access vectors outside their authorized scope.
 
 ### C. Multimodal OCR & Caching
 *   **DPI Rendering:** Uses `PyMuPDF` to convert PDF pages into PNG images at 150 DPI to ensure clear legibility for Gemini vision models.

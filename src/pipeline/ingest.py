@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 from pathlib import Path
 from src import config
 from src.pipeline.pdf_parser import PDFBookParser
-from src.vector_store.client import get_vector_db_client, get_embedding_function, get_or_create_collection
+from src.vector_store.client import get_embedding_function
 
 
 def _stream_download(url: str) -> Path:

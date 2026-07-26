@@ -1,4 +1,4 @@
-from src.vector_store.client import get_vector_db_client, get_embedding_function, get_or_create_collection
+from src.vector_store.client import get_embedding_function, get_vector_db_client
 from rank_bm25 import BM25Okapi
 import re
 
@@ -281,30 +281,31 @@ def multi_domain_retrieval(
     and date range filtering ("from_date" to "to_date").
     Uses Hybrid Search (Dense Vector with RETRIEVAL_QUERY + Bigram BM25) and Reciprocal Rank Fusion.
     """
-    client = get_vector_db_client()
-    embedding_fn = get_embedding_function()
-    query_emb_fn = get_embedding_function(task_type="RETRIEVAL_QUERY")
+    from src import config
     
     # Extract page and volume hints from query
     page_hint, volume_hint = extract_hints_from_query(query)
     
     all_candidate_results = []
-    existing_cols = [c.name for c in client.list_collections()]
     
-    # Generate query embedding vector using RETRIEVAL_QUERY task_type
-    try:
-        query_vectors = query_emb_fn([query])
-    except Exception as e:
-        print(f"[Warning] Failed to generate RETRIEVAL_QUERY embedding: {e}")
-        query_vectors = None
-    
+    # List existing collections depending on the active backend
+    if config.VECTOR_DB_BACKEND == "qdrant":
+        from qdrant_client import QdrantClient
+        if config.QDRANT_HOST:
+            q_client = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
+        else:
+            q_client = QdrantClient(path=str(config.DATA_DIR / "qdrant_db"))
+        existing_cols = [c.name for c in q_client.get_collections().collections]
+    else:
+        client = get_vector_db_client()
+        existing_cols = [c.name for c in client.list_collections()]
+        
     for tag_uuid in tag_name_uuids:
         tag_clean = tag_uuid.strip().lower()
         if not tag_clean:
             continue
         
         col_name = f"{tag_clean}_{doc_type}"
-        from src import config
         curriculum_col = f"{config.COLLECTION_NAME}_{tag_clean}"
         target_cols_to_search = []
         
@@ -329,7 +330,8 @@ def multi_domain_retrieval(
             continue
             
         for c_name, meta_tag_filter in target_cols_to_search:
-            collection = get_or_create_collection(client, embedding_fn, collection_name=c_name)
+            from src.vector_store.client import get_vector_store
+            vector_store = get_vector_store(field=tag_clean, collection_name_override=c_name)
             
             # Build metadata filter
             filters = []
@@ -366,8 +368,6 @@ def multi_domain_retrieval(
             elif len(filters) > 1:
                 where_filter = {"$and": filters}
             
-            chroma_where = where_filter if where_filter else None
-            
             # 1. Dense Search
             dense_ids = []
             dense_docs = {}
@@ -375,18 +375,11 @@ def multi_domain_retrieval(
             dense_dists = {}
             
             try:
-                if query_vectors:
-                    query_res = collection.query(
-                        query_embeddings=query_vectors,
-                        n_results=top_k * 2,
-                        where=chroma_where
-                    )
-                else:
-                    query_res = collection.query(
-                        query_texts=[query],
-                        n_results=top_k * 2,
-                        where=chroma_where
-                    )
+                query_res = vector_store.query(
+                    query_text=query,
+                    top_k=top_k,
+                    where=where_filter if where_filter else None
+                )
                     
                 if query_res and query_res["ids"] and query_res["ids"][0]:
                     for idx, doc_id in enumerate(query_res["ids"][0]):
@@ -400,10 +393,7 @@ def multi_domain_retrieval(
             # 2. BM25 Search with Bigrams
             bm25_results = []
             try:
-                if chroma_where:
-                    all_docs = collection.get(where=chroma_where, include=["documents", "metadatas"])
-                else:
-                    all_docs = collection.get(include=["documents", "metadatas"])
+                all_docs = vector_store.get_all(where=where_filter if where_filter else None)
                     
                 if all_docs and all_docs["ids"]:
                     corpus = all_docs["documents"]
@@ -458,5 +448,83 @@ def multi_domain_retrieval(
     # Sort candidate results by RRF score descending
     all_candidate_results.sort(key=lambda x: x.get("rrf_score", 0.0), reverse=True)
     return all_candidate_results[:top_k]
+
+
+def get_document_outline(field: str) -> dict[str, list[dict]]:
+    """
+    Retrieves the syllabus/outline structure for all documents in the specified field.
+    Groups by file_name and extracts unique lesson names sorted by page index.
+    """
+    from src.vector_store.client import get_vector_store
+    vector_store = get_vector_store(field)
+    
+    results = vector_store.get_all()
+    if not results or "metadatas" not in results:
+        return {}
+        
+    # Group by file identification
+    # key: (file_id, file_name) -> list of chunks metadata
+    files_data = {}
+    for meta in results["metadatas"]:
+        # Skip if metadata is empty
+        if not meta:
+            continue
+        file_id = meta.get("file_id", "default_textbook")
+        file_name = meta.get("file_name")
+        if not file_name:
+            vol = meta.get("volume", "1")
+            file_name = f"Tài liệu {field.upper()} (Tập {vol})"
+            
+        file_key = (file_id, file_name)
+        if file_key not in files_data:
+            files_data[file_key] = []
+        files_data[file_key].append(meta)
+        
+    outline_by_file = {}
+    for (file_id, file_name), metas in files_data.items():
+        # Extract unique lessons
+        # We want to keep track of first appearance page to sort them properly
+        lessons_seen = {}
+        for m in metas:
+            lesson = m.get("lesson_name") or "Unknown"
+            # Normalize lesson name for uniqueness check, but keep original casing
+            lesson_norm = lesson.strip().lower()
+            
+            phys_page = m.get("physical_page", -1)
+            pdf_idx = m.get("pdf_page_index", 0)
+            vol = m.get("volume", "1")
+            
+            page_sort_key = (
+                int(vol) if str(vol).isdigit() else 1,
+                int(phys_page) if phys_page > 0 else 9999,
+                int(pdf_idx)
+            )
+            
+            if lesson_norm not in lessons_seen or page_sort_key < lessons_seen[lesson_norm]["sort_key"]:
+                lessons_seen[lesson_norm] = {
+                    "lesson_name": lesson,
+                    "physical_page": phys_page,
+                    "pdf_page_index": pdf_idx,
+                    "volume": vol,
+                    "sort_key": page_sort_key
+                }
+                
+        # Sort lessons by page order
+        sorted_lessons = sorted(lessons_seen.values(), key=lambda x: x["sort_key"])
+        
+        # Remove sort_key from output
+        cleaned_lessons = []
+        for l in sorted_lessons:
+            cleaned_lessons.append({
+                "lesson_name": l["lesson_name"],
+                "physical_page": l["physical_page"],
+                "pdf_page_index": l["pdf_page_index"],
+                "volume": l["volume"]
+            })
+            
+        outline_by_file[file_name] = cleaned_lessons
+        
+    return outline_by_file
+
 
 

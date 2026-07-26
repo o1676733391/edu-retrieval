@@ -4,7 +4,6 @@ from pathlib import Path
 # Add src to python path if needed
 sys.path.append(str(Path(__file__).parent))
 
-from src.vector_store.client import get_vector_db_client, get_embedding_function, get_or_create_collection
 from src.vector_store.search import book_knowledge_search
 from src import config
 
@@ -13,11 +12,10 @@ def check_database() -> bool:
     Checks if Vector DB exists and contains indexed pages.
     """
     try:
-        client = get_vector_db_client()
-        embedding_fn = get_embedding_function()
-        collection = get_or_create_collection(client, embedding_fn)
-        count = collection.count()
-        return count > 0
+        from src.vector_store.client import get_vector_store
+        vector_store = get_vector_store("math")
+        docs = vector_store.get_all()
+        return len(docs.get("ids", [])) > 0
     except Exception as e:
         print(f"[Warning] Database check failed: {e}")
         return False
@@ -28,7 +26,7 @@ def print_welcome():
     print("=" * 60)
     print("Chào mừng bạn! Đây là công cụ tra cứu cơ sở kiến thức SGK Toán 3.")
     print("Công cụ này giúp bạn tìm kiếm các bài học, phép tính, và bài tập")
-    print("phù hợp nhất từ cơ sở dữ liệu Vector (ChromaDB).")
+    print("phù hợp nhất từ cơ sở dữ liệu Vector.")
     print("\n* Hướng dẫn:")
     print("  - Đặt câu hỏi trực tiếp (Ví dụ: 'Giải bài 2 trang 15 tập 1')")
     print("  - Gõ '/help' để xem hướng dẫn.")
@@ -55,8 +53,8 @@ def main():
     # 3. Initialize RAG Search
     try:
         print("🔄 Đang khởi động Công cụ Tra cứu RAG...")
-        client = get_vector_db_client()
-        client.heartbeat()
+        from src.vector_store.client import get_vector_store
+        vector_store = get_vector_store("math")
         print("✅ Cơ sở dữ liệu đã sẵn sàng!")
     except Exception as e:
         print(f"❌ Khởi tạo cơ sở dữ liệu thất bại: {e}")
