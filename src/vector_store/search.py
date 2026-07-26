@@ -113,11 +113,9 @@ def book_knowledge_search(
     """
     from src import config
     
-    # Initialize DB client and collection
-    client = get_vector_db_client()
-    embedding_fn = get_embedding_function()
-    col_name = f"{config.COLLECTION_NAME}_{field}"
-    collection = get_or_create_collection(client, embedding_fn, collection_name=col_name)
+    # Initialize Vector Store
+    from src.vector_store.client import get_vector_store
+    vector_store = get_vector_store(field)
     
     # Extract hints from query text if not provided explicitly
     extracted_page, extracted_vol = extract_hints_from_query(query)
@@ -182,14 +180,11 @@ def book_knowledge_search(
         where_filter = {"$and": filters}
         
     # 1. DENSE VECTOR SEARCH
-    # If where_filter is empty, pass None to chroma
-    chroma_where = where_filter if where_filter else None
-    
     try:
-        dense_results = collection.query(
-            query_texts=[query],
-            n_results=top_k * 2,  # retrieve slightly more to allow hybrid merging
-            where=chroma_where
+        dense_results = vector_store.query(
+            query_text=query,
+            top_k=top_k,
+            where=where_filter if where_filter else None
         )
     except Exception as e:
         print(f"Error during collection query: {e}")
@@ -198,10 +193,7 @@ def book_knowledge_search(
     # 2. BM25 KEYWORD SEARCH OVER COLOURED CORPUS
     # Fetch all items matching the filter (or all items if no filter) to run BM25
     try:
-        if chroma_where:
-            all_docs = collection.get(where=chroma_where, include=["documents", "metadatas"])
-        else:
-            all_docs = collection.get(include=["documents", "metadatas"])
+        all_docs = vector_store.get_all(where=where_filter if where_filter else None)
     except Exception as e:
         print(f"Error fetching docs for BM25: {e}")
         all_docs = {"ids": [], "documents": [], "metadatas": []}

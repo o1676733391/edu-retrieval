@@ -15,12 +15,16 @@ DB_DIR = DATA_DIR / "chroma_db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_DIR.mkdir(parents=True, exist_ok=True)
 
-# Vector DB backend selection (chromadb or qdrant)
+# Vector Database Selection
 VECTOR_DB_BACKEND = os.getenv("VECTOR_DB_BACKEND", "chromadb").lower()
 
 # ChromaDB Remote server configs
 CHROMA_HOST = os.getenv("CHROMA_HOST", "")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
+
+# Qdrant Remote server configs
+QDRANT_HOST = os.getenv("QDRANT_HOST", "")
+QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 
 # Model configs
 EMBEDDING_MODEL_NAME = "text-embedding-004"  # Default Gemini/Vertex AI embedding model

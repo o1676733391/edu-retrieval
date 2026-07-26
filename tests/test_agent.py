@@ -163,19 +163,17 @@ class TestEducationalAssistant(unittest.TestCase):
             user_groups=["teacher", "hr"]
         )
 
-    @unittest.mock.patch('src.api.main.get_vector_db_client')
-    @unittest.mock.patch('src.api.main.get_embedding_function')
-    @unittest.mock.patch('src.api.main.get_or_create_collection')
-    def test_api_list_documents(self, mock_get_coll, mock_get_emb, mock_get_client):
+    @unittest.mock.patch('src.api.main.get_vector_store')
+    def test_api_list_documents(self, mock_get_store):
         from fastapi.testclient import TestClient
         from src.api.main import app
         
         client = TestClient(app)
-        mock_collection = unittest.mock.MagicMock()
-        mock_get_coll.return_value = mock_collection
+        mock_store = unittest.mock.MagicMock()
+        mock_get_store.return_value = mock_store
         
-        # Mock ChromaDB metadatas return
-        mock_collection.get.return_value = {
+        # Mock Vector Store get_all return
+        mock_store.get_all.return_value = {
             "metadatas": [
                 {"file_id": "doc_1", "file_name": "File 1.pdf", "volume": "1", "visibility": "public"},
                 {"file_id": "doc_1", "file_name": "File 1.pdf", "volume": "1", "visibility": "public"},
@@ -199,38 +197,30 @@ class TestEducationalAssistant(unittest.TestCase):
         default_doc = next(d for d in data["documents"] if d["file_id"] == "default_textbook")
         self.assertEqual(default_doc["chunk_count"], 1)
 
-    @unittest.mock.patch('src.api.main.get_vector_db_client')
-    @unittest.mock.patch('src.api.main.get_embedding_function')
-    @unittest.mock.patch('src.api.main.get_or_create_collection')
-    def test_api_delete_document(self, mock_get_coll, mock_get_emb, mock_get_client):
+    @unittest.mock.patch('src.api.main.get_vector_store')
+    def test_api_delete_document(self, mock_get_store):
         from fastapi.testclient import TestClient
         from src.api.main import app
         
         client = TestClient(app)
-        mock_collection = unittest.mock.MagicMock()
-        mock_get_coll.return_value = mock_collection
+        mock_store = unittest.mock.MagicMock()
+        mock_get_store.return_value = mock_store
         
         response = client.delete("/api/documents/doc_1?field=math")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "success")
         
-        mock_collection.delete.assert_called_once_with(where={"file_id": "doc_1"})
+        mock_store.delete.assert_called_once_with(where={"file_id": "doc_1"})
 
-    @unittest.mock.patch('src.api.main.get_vector_db_client')
-    @unittest.mock.patch('src.api.main.get_embedding_function')
-    @unittest.mock.patch('src.api.main.get_or_create_collection')
-    def test_api_get_document_chunks(self, mock_get_coll, mock_get_emb, mock_get_client):
+    @unittest.mock.patch('src.api.main.get_vector_store')
+    def test_api_get_document_chunks(self, mock_get_store):
         from fastapi.testclient import TestClient
         from src.api.main import app
         
         client = TestClient(app)
-        mock_client = unittest.mock.MagicMock()
-        mock_get_client.return_value = mock_client
-        mock_client.list_collections.return_value = []
-        
-        mock_collection = unittest.mock.MagicMock()
-        mock_get_coll.return_value = mock_collection
-        mock_collection.get.return_value = {
+        mock_store = unittest.mock.MagicMock()
+        mock_get_store.return_value = mock_store
+        mock_store.get_all.return_value = {
             "ids": ["doc_1_p15", "doc_1_p10"],
             "documents": ["Text page 15", "Text page 10"],
             "metadatas": [
@@ -248,66 +238,57 @@ class TestEducationalAssistant(unittest.TestCase):
         self.assertEqual(data["chunks"][0]["physical_page"], 10)
         self.assertEqual(data["chunks"][1]["physical_page"], 15)
 
-    @unittest.mock.patch('src.vector_store.search.get_vector_db_client')
-    @unittest.mock.patch('src.vector_store.search.get_embedding_function')
-    @unittest.mock.patch('src.vector_store.search.get_or_create_collection')
-    def test_rbac_filtering_and_field_isolation(self, mock_get_coll, mock_get_emb, mock_get_client):
+    @unittest.mock.patch('src.vector_store.client.get_vector_store')
+    def test_rbac_filtering_and_field_isolation(self, mock_get_store):
         from src.vector_store.search import book_knowledge_search
         
-        # Setup mocks
-        mock_client = unittest.mock.MagicMock()
-        mock_get_client.return_value = mock_client
-        mock_collection = unittest.mock.MagicMock()
-        mock_get_coll.return_value = mock_collection
+        # Setup mock vector store
+        mock_store = unittest.mock.MagicMock()
+        mock_get_store.return_value = mock_store
         
-        # Mock query return
-        mock_collection.query.return_value = {"ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]}
-        mock_collection.get.return_value = {"ids": [], "documents": [], "metadatas": []}
+        # Mock query and get_all return
+        mock_store.query.return_value = {"ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]}
+        mock_store.get_all.return_value = {"ids": [], "documents": [], "metadatas": []}
         
         # 1. Test student query for math field
         book_knowledge_search("bài toán", field="math", user_role="student")
         
-        # Verify collection name called was toan_3_curriculum_math
-        mock_get_coll.assert_called_with(mock_client, mock_get_emb.return_value, collection_name="toan_3_curriculum_math")
+        # Verify get_vector_store was called with correct field
+        mock_get_store.assert_called_with("math")
         
-        # Verify collection.query was called with student visibility filter (public)
-        args, kwargs = mock_collection.query.call_args
+        # Verify query was called with student visibility filter (public)
+        args, kwargs = mock_store.query.call_args
         self.assertEqual(kwargs["where"], {"visibility": "public"})
         
         # 2. Test teacher query for science field
-        mock_get_coll.reset_mock()
-        mock_collection.query.reset_mock()
+        mock_get_store.reset_mock()
+        mock_store.query.reset_mock()
         book_knowledge_search("phản ứng hóa học", field="science", user_role="teacher")
         
-        # Verify collection name called was toan_3_curriculum_science
-        mock_get_coll.assert_called_with(mock_client, mock_get_emb.return_value, collection_name="toan_3_curriculum_science")
+        # Verify get_vector_store was called with correct field
+        mock_get_store.assert_called_with("science")
         
-        # Verify collection.query was called with teacher visibility filter (public OR teacher_only)
-        args, kwargs = mock_collection.query.call_args
+        # Verify query was called with teacher visibility filter (public OR teacher_only)
+        args, kwargs = mock_store.query.call_args
         self.assertEqual(kwargs["where"], {"$or": [{"visibility": "public"}, {"visibility": "teacher_only"}]})
         
         # 3. Test admin query
-        mock_collection.query.reset_mock()
+        mock_store.query.reset_mock()
         book_knowledge_search("bất kỳ", user_role="admin")
-        args, kwargs = mock_collection.query.call_args
-        # Admin should have no visibility restriction
+        args, kwargs = mock_store.query.call_args
         self.assertIsNone(kwargs["where"])
 
-    @unittest.mock.patch('src.vector_store.search.get_vector_db_client')
-    @unittest.mock.patch('src.vector_store.search.get_embedding_function')
-    @unittest.mock.patch('src.vector_store.search.get_or_create_collection')
-    def test_rbac_acl_filtering(self, mock_get_coll, mock_get_emb, mock_get_client):
+    @unittest.mock.patch('src.vector_store.client.get_vector_store')
+    def test_rbac_acl_filtering(self, mock_get_store):
         from src.vector_store.search import book_knowledge_search
         
-        # Setup mocks
-        mock_client = unittest.mock.MagicMock()
-        mock_get_client.return_value = mock_client
-        mock_collection = unittest.mock.MagicMock()
-        mock_get_coll.return_value = mock_collection
+        # Setup mock vector store
+        mock_store = unittest.mock.MagicMock()
+        mock_get_store.return_value = mock_store
         
-        # Mock query return
-        mock_collection.query.return_value = {"ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]}
-        mock_collection.get.return_value = {"ids": [], "documents": [], "metadatas": []}
+        # Mock query and get_all return
+        mock_store.query.return_value = {"ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]}
+        mock_store.get_all.return_value = {"ids": [], "documents": [], "metadatas": []}
         
         # Test query as teacher with specific user_id and groups (should form OR filter)
         book_knowledge_search(
@@ -317,7 +298,7 @@ class TestEducationalAssistant(unittest.TestCase):
             user_id="john_doe", 
             user_groups=["teachers_group", "hr_group"]
         )
-        args, kwargs = mock_collection.query.call_args
+        args, kwargs = mock_store.query.call_args
         expected_where = {
             "$or": [
                 {"visibility": "public"},
@@ -330,6 +311,7 @@ class TestEducationalAssistant(unittest.TestCase):
         }
         self.assertEqual(kwargs["where"], expected_where)
 
+    @unittest.mock.patch('src.api.main.config.VECTOR_DB_BACKEND', 'chromadb')
     @unittest.mock.patch('src.api.main.get_vector_db_client')
     @unittest.mock.patch('src.api.main.get_embedding_function')
     @unittest.mock.patch('src.api.main.get_or_create_collection')

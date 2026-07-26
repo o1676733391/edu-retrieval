@@ -16,12 +16,16 @@ services:
     container_name: math_assistant_app
     depends_on:
       - chromadb
+      - qdrant
 
     env_file:
       - .env
     environment:
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
+      - VECTOR_DB_BACKEND=${VECTOR_DB_BACKEND}
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
       - USE_VERTEXAI=${USE_VERTEXAI}
       - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
       - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION}
@@ -42,4 +46,14 @@ services:
     tty: true
     # Run FastAPI server by default
     command: uvicorn src.api.main:app --host 0.0.0.0 --port 8080 --reload
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant_server
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - ./data/qdrant_db:/qdrant/storage
+    restart: unless-stopped
 
