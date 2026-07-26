@@ -5,7 +5,7 @@ from typing import Optional, List, Union
 from src import config
 from src.pipeline.ingest import run_ingest
 from src.vector_store.search import book_knowledge_search, multi_domain_retrieval
-from src.vector_store.client import get_vector_db_client, get_embedding_function, get_or_create_collection
+from src.vector_store.client import get_vector_db_client, get_embedding_function, get_or_create_collection, get_vector_store
 from src.prompt_registry.registry import (
     initialize_prompt_db,
     get_active_prompts,
@@ -111,9 +111,18 @@ def health_check():
     Verifies server health and database connectivity.
     """
     try:
-        client = get_vector_db_client()
-        client.heartbeat()
-        db_connected = True
+        if config.VECTOR_DB_BACKEND == "qdrant":
+            from qdrant_client import QdrantClient
+            if config.QDRANT_HOST:
+                client = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
+            else:
+                client = QdrantClient(path=str(config.DATA_DIR / "qdrant_db"))
+            client.get_collections()
+            db_connected = True
+        else:
+            client = get_vector_db_client()
+            client.heartbeat()
+            db_connected = True
     except Exception:
         db_connected = False
     return {
@@ -185,10 +194,7 @@ def preview_db(field: str = "math", role: str = "student", limit: int = 10):
     associated with a specific role's permission level.
     """
     try:
-        client = get_vector_db_client()
-        embedding_fn = get_embedding_function()
-        col_name = f"{config.COLLECTION_NAME}_{field}"
-        collection = get_or_create_collection(client, embedding_fn, collection_name=col_name)
+        vector_store = get_vector_store(field)
         
         # Build metadata filters for RBAC
         where_filter = {}
@@ -199,18 +205,12 @@ def preview_db(field: str = "math", role: str = "student", limit: int = 10):
             else:
                 where_filter = {"$or": [{"visibility": v} for v in allowed_visibilities]}
                 
-        chroma_where = where_filter if where_filter else None
-        
         # Fetch documents
-        results = collection.get(
-            limit=limit,
-            where=chroma_where,
-            include=["documents", "metadatas"]
-        )
+        results = vector_store.get_all(where=where_filter)
         
         formatted_records = []
         if results and "ids" in results:
-            for idx, doc_id in enumerate(results["ids"]):
+            for idx, doc_id in enumerate(results["ids"][:limit]):
                 formatted_records.append({
                     "id": doc_id,
                     "text": results["documents"][idx],
@@ -232,13 +232,8 @@ def list_documents(field: str = "math"):
     Lists unique ingested documents in the specified subject field.
     """
     try:
-        client = get_vector_db_client()
-        embedding_fn = get_embedding_function()
-        col_name = f"{config.COLLECTION_NAME}_{field}"
-        collection = get_or_create_collection(client, embedding_fn, collection_name=col_name)
-        
-        # Get all chunk metadata
-        results = collection.get(include=["metadatas"])
+        vector_store = get_vector_store(field)
+        results = vector_store.get_all()
         
         docs_dict = {}
         if results and "metadatas" in results:
@@ -279,9 +274,6 @@ def get_document_chunks_endpoint(file_id: str, field: str = "math", doc_type: st
     ordered by physical_page / pdf_page_index.
     """
     try:
-        client = get_vector_db_client()
-        embedding_fn = get_embedding_function()
-        
         clean_file_id = file_id.strip().lower()
         clean_doc_type = doc_type.strip().lower()
         clean_field = field.strip().lower()
@@ -292,25 +284,35 @@ def get_document_chunks_endpoint(file_id: str, field: str = "math", doc_type: st
             f"{clean_field}_{clean_doc_type}"
         ]
         
-        existing_cols = [c.name for c in client.list_collections()]
-        target_collection = None
+        if config.VECTOR_DB_BACKEND == "qdrant":
+            from qdrant_client import QdrantClient
+            if config.QDRANT_HOST:
+                client = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
+            else:
+                client = QdrantClient(path=str(config.DATA_DIR / "qdrant_db"))
+            existing_cols = [c.name for c in client.get_collections().collections]
+        else:
+            client = get_vector_db_client()
+            existing_cols = [c.name for c in client.list_collections()]
+            
+        target_collection_name = None
         where_clause = None
         
         for c_name in col_names_to_check:
             if c_name in existing_cols:
-                target_collection = get_or_create_collection(client, embedding_fn, collection_name=c_name)
+                target_collection_name = c_name
                 if c_name.startswith(f"{clean_file_id}_"):
                     where_clause = None
                 else:
                     where_clause = {"$or": [{"file_id": file_id}, {"tag_name_uuid": file_id}]}
                 break
                 
-        if not target_collection:
-            col_name = f"{config.COLLECTION_NAME}_{clean_field}"
-            target_collection = get_or_create_collection(client, embedding_fn, collection_name=col_name)
+        if not target_collection_name:
+            target_collection_name = f"{config.COLLECTION_NAME}_{clean_field}"
             where_clause = {"$or": [{"file_id": file_id}, {"tag_name_uuid": file_id}]}
 
-        res = target_collection.get(where=where_clause, include=["documents", "metadatas"])
+        vector_store = get_vector_store(clean_field, collection_name_override=target_collection_name)
+        res = vector_store.get_all(where=where_clause)
         
         chunks = []
         if res and res.get("ids"):
@@ -345,13 +347,10 @@ def delete_document(file_id: str, field: str = "math"):
     Deletes all chunks associated with a file_id.
     """
     try:
-        client = get_vector_db_client()
-        embedding_fn = get_embedding_function()
-        col_name = f"{config.COLLECTION_NAME}_{field}"
-        collection = get_or_create_collection(client, embedding_fn, collection_name=col_name)
+        vector_store = get_vector_store(field)
         
         # Deleting all matching records
-        collection.delete(where={"file_id": str(file_id)})
+        vector_store.delete(where={"file_id": str(file_id)})
         return {
             "status": "success",
             "message": f"Successfully deleted document '{file_id}' from field '{field}'"
@@ -372,22 +371,45 @@ def create_domain_endpoint(req: CreateDomainRequest):
         if not clean_name:
             raise HTTPException(status_code=400, detail="domain_name cannot be empty")
             
-        client = get_vector_db_client()
-        embedding_fn = get_embedding_function()
-        
-        existing_cols = [c.name for c in client.list_collections()]
         doc_col_name = f"{clean_name}_doc"
         qa_col_name = f"{clean_name}_qa"
         
         created = []
         already_existed = []
         
-        for col_name in [doc_col_name, qa_col_name]:
-            if col_name in existing_cols:
-                already_existed.append(col_name)
+        if config.VECTOR_DB_BACKEND == "qdrant":
+            from qdrant_client import QdrantClient
+            from qdrant_client.http import models
+            if config.QDRANT_HOST:
+                client = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
             else:
-                get_or_create_collection(client, embedding_fn, collection_name=col_name)
-                created.append(col_name)
+                client = QdrantClient(path=str(config.DATA_DIR / "qdrant_db"))
+                
+            existing_cols = [c.name for c in client.get_collections().collections]
+            embedding_fn = get_embedding_function()
+            dummy_emb = embedding_fn(["dummy"])[0]
+            vector_size = len(dummy_emb)
+            
+            for col_name in [doc_col_name, qa_col_name]:
+                if col_name in existing_cols:
+                    already_existed.append(col_name)
+                else:
+                    client.create_collection(
+                        collection_name=col_name,
+                        vectors_config=models.VectorParams(size=vector_size, distance=models.Distance.COSINE)
+                    )
+                    created.append(col_name)
+        else:
+            client = get_vector_db_client()
+            embedding_fn = get_embedding_function()
+            existing_cols = [c.name for c in client.list_collections()]
+            
+            for col_name in [doc_col_name, qa_col_name]:
+                if col_name in existing_cols:
+                    already_existed.append(col_name)
+                else:
+                    get_or_create_collection(client, embedding_fn, collection_name=col_name)
+                    created.append(col_name)
                 
         return {
             "status": "success",

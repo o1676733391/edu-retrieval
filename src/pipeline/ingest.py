@@ -253,19 +253,18 @@ def run_ingest(
     col_name = collection_name_override if collection_name_override else f"{config.COLLECTION_NAME}_{field}"
     print(f"Indexing {len(processed_pages)} pages into Vector DB collection: {col_name}...")
     
-    # Initialize Chroma client
-    client = get_vector_db_client()
-    embedding_fn = get_embedding_function()
-    collection = get_or_create_collection(client, embedding_fn, collection_name=col_name)
+    # Initialize Vector Store
+    from src.vector_store.client import get_vector_store
+    vector_store = get_vector_store(field, collection_name_override=col_name)
     
     # Delete first if requested (override or delete_first mode)
     if mode in ["override", "delete_first"]:
         try:
             print(f"Override/Delete mode: deleting existing chunks in collection '{col_name}'...")
             if file_id:
-                collection.delete(where={"file_id": str(file_id)})
+                vector_store.delete(where={"file_id": str(file_id)})
             elif file_name:
-                collection.delete(where={"file_name": str(file_name)})
+                vector_store.delete(where={"file_name": str(file_name)})
         except Exception as e:
             print(f"[Warning] Failed to delete existing chunks: {e}")
     
@@ -290,17 +289,16 @@ def run_ingest(
         all_ids.append(doc_id)
         page_map[doc_id] = page
 
-    # Check which IDs already exist in ChromaDB to enable resuming
+    # Check which IDs already exist in Vector DB to enable resuming
     existing_ids = set()
     if mode != "override":
         try:
-            existing_res = collection.get(ids=all_ids, include=[])
-            if existing_res and "ids" in existing_res:
-                existing_ids = set(existing_res["ids"])
-                if existing_ids:
-                    print(f"ChromaDB Checkpoint: Found {len(existing_ids)} chunks already indexed. Skipping their embedding phase.")
+            existing = vector_store.get_by_ids(all_ids)
+            existing_ids = set(existing)
+            if existing_ids:
+                print(f"Vector DB Checkpoint: Found {len(existing_ids)} chunks already indexed. Skipping their embedding phase.")
         except Exception as e:
-            print(f"[Warning] Failed to query existing IDs from ChromaDB: {e}")
+            print(f"[Warning] Failed to query existing IDs from Vector DB: {e}")
 
     for doc_id in all_ids:
         # If already indexed, keep ID for obsolete check, but skip re-indexing
@@ -350,31 +348,31 @@ def run_ingest(
         new_documents.append(text_content)
         new_metadatas.append(meta_entry)
         
-    # Chroma upsert only new/updated documents
+    # Upsert only new/updated documents
     if new_ids:
         log_step("Embedding", f"vectorizing and upserting {len(new_ids)} chunks", tag_name=file_id)
         batch_size = 100
         for i in range(0, len(new_ids), batch_size):
             end_idx = min(i + batch_size, len(new_ids))
             print(f"  - Embedding batch {i} to {end_idx} of {len(new_ids)}...")
-            collection.upsert(
+            vector_store.upsert(
                 ids=new_ids[i:end_idx],
                 documents=new_documents[i:end_idx],
                 metadatas=new_metadatas[i:end_idx]
             )
     else:
-        print("All chunks already fully indexed in ChromaDB. No new embeddings needed.")
+        print("All chunks already fully indexed in Vector DB. No new embeddings needed.")
         
     # Delete obsolete chunks in keep_cache mode
     if file_id and mode == "keep_cache":
         try:
             print(f"Keep cache mode: cleaning up obsolete chunks for file_id '{file_id}'...")
-            existing = collection.get(where={"file_id": str(file_id)}, include=[])
+            existing = vector_store.get_all(where={"file_id": str(file_id)})
             if existing and "ids" in existing:
                 obsolete_ids = list(set(existing["ids"]) - set(ids))
                 if obsolete_ids:
                     print(f"Deleting {len(obsolete_ids)} obsolete chunk IDs...")
-                    collection.delete(ids=obsolete_ids)
+                    vector_store.delete(ids=obsolete_ids)
         except Exception as e:
             print(f"[Warning] Failed to clean up obsolete chunks for file_id '{file_id}': {e}")
 

@@ -127,3 +127,31 @@ def get_or_create_collection(client, embedding_function, collection_name: str = 
         metadata={"hnsw:space": "cosine"}  # use cosine similarity
     )
 
+def get_vector_store(field: str, collection_name_override: str = None):
+    """
+    Dynamically returns the configured BaseVectorStore backend (ChromaDB or Qdrant).
+    """
+    from src.vector_store.base import BaseVectorStore
+    from src.vector_store.chroma import ChromaVectorStore
+    from src.vector_store.qdrant import QdrantVectorStore
+    from qdrant_client import QdrantClient
+    
+    col_name = collection_name_override if collection_name_override else f"{config.COLLECTION_NAME}_{field}"
+    embedding_fn = get_embedding_function()
+    
+    if config.VECTOR_DB_BACKEND == "qdrant":
+        if config.QDRANT_HOST:
+            print(f"Connecting to remote Qdrant server at http://{config.QDRANT_HOST}:{config.QDRANT_PORT}")
+            client = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
+        else:
+            qdrant_dir = config.DATA_DIR / "qdrant_db"
+            print(f"Connecting to local persistent Qdrant at {qdrant_dir}")
+            client = QdrantClient(path=str(qdrant_dir))
+            
+        return QdrantVectorStore(client, col_name, embedding_fn)
+    else:
+        # Default backend: ChromaDB
+        client = get_vector_db_client()
+        collection = get_or_create_collection(client, embedding_fn, collection_name=col_name)
+        return ChromaVectorStore(collection)
+
