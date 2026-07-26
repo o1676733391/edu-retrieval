@@ -1,8 +1,68 @@
-from fastapi import FastAPI, HTTPException
+import json
+import logging
+import os
+from datetime import datetime
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional, List, Union
 from src import config
+
+LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+
+
+class DailyFileHandler(logging.Handler):
+    """Writes to a new file named '{prefix}-YYYY-MM-DD.log' whenever the date changes."""
+
+    def __init__(self, log_dir, prefix="api"):
+        super().__init__()
+        self.log_dir = log_dir
+        self.prefix = prefix
+        self._current_date = None
+        self._stream = None
+
+    def _open_for_today(self):
+        today = datetime.now().strftime("%Y-%m-%d")
+        if today != self._current_date:
+            if self._stream:
+                self._stream.close()
+            self._current_date = today
+            path = os.path.join(self.log_dir, f"{self.prefix}-{today}.log")
+            self._stream = open(path, "a", encoding="utf-8")
+
+    def emit(self, record):
+        try:
+            self._open_for_today()
+            self._stream.write(self.format(record) + "\n")
+            self._stream.flush()
+        except Exception:
+            self.handleError(record)
+
+    def close(self):
+        if self._stream:
+            self._stream.close()
+        super().close()
+
+
+# Full request/response detail (method, path, body) -> file only
+logger = logging.getLogger("api")
+logger.setLevel(logging.INFO)
+logger.propagate = False
+if not logger.handlers:
+    file_handler = DailyFileHandler(LOG_DIR, prefix="api")
+    file_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+    logger.addHandler(file_handler)
+
+# Short status only ("OK"/"FAILED") -> console only
+console_logger = logging.getLogger("api.console")
+console_logger.setLevel(logging.INFO)
+console_logger.propagate = False
+if not console_logger.handlers:
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+    console_logger.addHandler(console_handler)
 from src.pipeline.ingest import run_ingest
 from src.vector_store.search import book_knowledge_search, multi_domain_retrieval
 from src.vector_store.client import get_vector_db_client, get_embedding_function, get_or_create_collection, get_vector_store
@@ -33,6 +93,32 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     initialize_prompt_db()
+
+
+@app.middleware("http")
+async def log_requests_responses(request: Request, call_next):
+    req_body = await request.body()
+    logger.info(f"[API] Incoming Request - {request.method} {request.url.path}"
+                f"{'?' + str(request.url.query) if request.url.query else ''}"
+                f" - body: {req_body.decode('utf-8', errors='replace')}")
+
+    response = await call_next(request)
+
+    resp_body = b""
+    async for chunk in response.body_iterator:
+        resp_body += chunk
+    logger.info(f"[API] Outgoing Response - {request.method} {request.url.path}"
+                f" - status: {response.status_code} - body: {resp_body.decode('utf-8', errors='replace')}")
+
+    status_label = "OK" if response.status_code < 400 else "FAILED"
+    console_logger.info(f"[API] {request.method} {request.url.path} -> {response.status_code} {status_label}")
+
+    return Response(
+        content=resp_body,
+        status_code=response.status_code,
+        headers=dict(response.headers),
+        media_type=response.media_type,
+    )
 
 class IngestRequest(BaseModel):
     file_path: Optional[str] = None
@@ -478,7 +564,6 @@ def retrieval_endpoint(req: RetrievalPayloadRequest):
     with type targeting (doc | qa) and date-range filtering (from_date -> to_date).
     """
     try:
-        import json
         tag_uuids = req.tag_name_uuids
         if isinstance(tag_uuids, str):
             v_stripped = tag_uuids.strip()
@@ -557,7 +642,6 @@ def retrieval_endpoint(req: RetrievalPayloadRequest):
             top_k=req.top_k or 5,
             org_ids=org_ids
         )
-        print(f"[Retrieval API] Outgoing Response - found {len(results)} results")
         return {
             "text": req.text,
             "tag_name_uuids": tag_uuids,
@@ -567,7 +651,6 @@ def retrieval_endpoint(req: RetrievalPayloadRequest):
             "results": results
         }
     except Exception as e:
-        print(f"[Retrieval API] Error occurred: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

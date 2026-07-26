@@ -109,6 +109,9 @@ def get_vector_db_client():
     Initializes and returns the ChromaDB client.
     Connects via HTTP HttpClient if host is configured, otherwise falls back to local PersistentClient.
     """
+    print(f"[VectorDB] VECTOR_DB_BACKEND={config.VECTOR_DB_BACKEND}")
+    if config.VECTOR_DB_BACKEND != "chromadb":
+        print(f"[VectorDB] Warning: backend '{config.VECTOR_DB_BACKEND}' is not implemented, falling back to chromadb.")
     if config.CHROMA_HOST:
         print(f"Connecting to remote ChromaDB server at http://{config.CHROMA_HOST}:{config.CHROMA_PORT}")
         return chromadb.HttpClient(host=config.CHROMA_HOST, port=config.CHROMA_PORT)

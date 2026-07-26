@@ -20,6 +20,7 @@ data/processed_*_data.json
 data/ocr_page_cache.json
 data/ocr_checkpoints/
 data/uploads/
+data/logs/
 *.db
 *.sqlite3
 *.sqlite
@@ -32,4 +33,7 @@ n8n-docker/n8n_db_backup.sqlite
 .DS_Store
 Thumbs.db
 
+data/
+
 readme-api.md
+readme-api-n8n.md
