@@ -33,6 +33,7 @@ Các chuyên gia sẵn có:
 - "exercise_generator": Chuyên gia tạo câu hỏi/bài tập luyện tập. (Chọn khi người dùng yêu cầu ra đề mới hoặc cho thêm bài tập tương tự).
 - "suggestive_tutor": Gia sư gợi mở, dẫn dắt học sinh. (Chọn khi học sinh nhờ giải bài nhưng muốn gợi ý, chỉ đường để tự làm).
 - "direct_solver": Chuyên gia giải nhanh và cho đáp án/lời giải ngay lập tức. (Chọn khi người dùng yêu cầu lời giải trực tiếp, đáp số nhanh chóng).
+- "no_intent": Chọn khi câu hỏi không rõ ý định cụ thể (mơ hồ, quá ngắn, chưa rõ muốn học lý thuyết, giải bài hay gợi ý, ví dụ: "bài tập tìm số chẵn", "phép nhân 2 chữ số").
 - "document_outline": Chuyên gia trích xuất mục lục, danh sách chủ đề, bài học hoặc cấu trúc các phần/chương có trong tài liệu. (Chọn khi người dùng hỏi liệt kê chủ đề, danh sách bài học, xem mục lục sách, hoặc liệt kê các phần/chương có trong sách/tài liệu).
 - "default": Giáo viên/Trợ lý học tập thông thường. (Chọn cho các câu hỏi tổng hợp khác, chào hỏi hoặc trò chuyện xã giao).
 
