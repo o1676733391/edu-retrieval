@@ -209,18 +209,23 @@ The system implements strict separation of concerns to handle visually-intensive
    └──> 5. Returns structured JSON containing array of matching chunks (id, collection, text, distance, metadata).
 ```
 
-### Workflow E: Interactive Streamlit Chatbot & Citation Generation
 ```
-[User Chat Input -> Streamlit Web UI]
+
+### Workflow F: Document Outline Retrieval (POST /api/outline & GET /api/outline)
+```
+[User / n8n Workflow Request: tag_name_uuids, org_ids, doc_type]
    │
-   ├──> 1. Streamlit invokes `multi_domain_retrieval` with user query and active field.
+   ├──> 1. API endpoint `/api/outline` parses `tag_name_uuids` and `org_ids` filters.
    │
-   ├──> 2. Formats retrieved chunks into RAG Context + explicitly builds Citation Lines (`Trang X`, `file_name`).
+   ├──> 2. Discovers matching collections (`{tag}_{doc_type}`, `{COLLECTION_NAME}_{tag}`, etc.) or searches across all collections.
    │
-   ├──> 3. Sends prompt + RAG Context to Gemini 2.5 Flash API for pedagogical reasoning.
+   ├──> 3. Invokes `get_document_outline()` to fetch all chunk metadatas.
    │
-   └──> 4. Renders streaming response in Chatbot UI (`st.chat_message`) with footnotes:
-          └──> 📖 Nguồn tham khảo: - Tài liệu: file.pdf | Bài học: Lesson | Vị trí: Trang 15 (Tập 1)
+   ├──> 4. Groups metadata by file (`file_name`, `file_id`) and extracts unique `lesson_name` entries.
+   │
+   ├──> 5. Sorts lessons chronologically by `(volume, physical_page, pdf_page_index)`.
+   │
+   └──> 6. Returns structured JSON containing `{ file_name: [ { lesson_name, physical_page, pdf_page_number, volume, tag_name_uuid, file_id, file_path, org_id, doc_type } ] }`.
 ```
 
 ---

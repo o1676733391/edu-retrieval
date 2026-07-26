@@ -13,6 +13,71 @@ from src.vector_store.client import get_vector_db_client, get_embedding_function
 from src.vector_store.search import book_knowledge_search, multi_domain_retrieval
 from src import config
 
+def get_all_tag_uuids() -> list[str]:
+    from src import config
+    try:
+        if config.VECTOR_DB_BACKEND == "qdrant":
+            from qdrant_client import QdrantClient
+            if config.QDRANT_HOST:
+                client = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
+            else:
+                client = QdrantClient(path=str(config.DATA_DIR / "qdrant_db"))
+            cols = [c.name for c in client.get_collections().collections]
+        else:
+            from src.vector_store.client import get_vector_db_client
+            client = get_vector_db_client()
+            cols = [c.name for c in client.list_collections()]
+            
+        # Clean collection names to extract tag_name_uuid
+        tag_uuids = set()
+        for col in cols:
+            if col.endswith("_doc"):
+                tag_uuids.add(col[:-4])
+            elif col.endswith("_qa"):
+                tag_uuids.add(col[:-3])
+            elif col.startswith(f"{config.COLLECTION_NAME}_"):
+                tag_uuids.add(col[len(f"{config.COLLECTION_NAME}_"):])
+            else:
+                tag_uuids.add(col)
+        
+        cleaned = sorted([t for t in tag_uuids if t and t != "prompt_registry"])
+        return cleaned
+    except Exception as e:
+        print(f"[Warning] Failed to fetch tag UUIDs: {e}")
+        return ["math"]
+
+def get_all_org_ids() -> list[str]:
+    from src import config
+    try:
+        tags = get_all_tag_uuids()
+        org_ids = set()
+        for tag in tags:
+            for doc_type in ["doc", "qa"]:
+                col_name = f"{tag}_{doc_type}"
+                from src.vector_store.client import get_vector_store
+                try:
+                    vs = get_vector_store(field=tag, collection_name_override=col_name)
+                    res = vs.get_all()
+                    if res and "metadatas" in res and res["metadatas"]:
+                        metadata_list = res["metadatas"]
+                        if metadata_list and isinstance(metadata_list, list):
+                            for meta in metadata_list:
+                                if isinstance(meta, list):
+                                    for m in meta:
+                                        if isinstance(m, dict) and "org_id" in m:
+                                            org_ids.add(m["org_id"])
+                                elif isinstance(meta, dict) and "org_id" in meta:
+                                    org_ids.add(meta["org_id"])
+                except Exception:
+                    pass
+        cleaned = sorted([o for o in org_ids if o])
+        if not cleaned:
+            return ["org_default"]
+        return cleaned
+    except Exception as e:
+        print(f"[Warning] Failed to fetch org IDs: {e}")
+        return ["org_default"]
+
 def get_available_ocr_caches():
     cache_files = list(config.DATA_DIR.glob("processed_*.json"))
     options = []
@@ -349,13 +414,18 @@ with st.sidebar:
     
     st.markdown("---")
     
-    st.markdown("### 📚 Subject & Agent Metadata")
-    # Category Tag / Field selection
-    active_field = st.text_input(
-        "Mã Môn học / Category Tag",
-        value="math",
-        help="Mã danh mục/môn học dùng để cô lập dữ liệu (ví dụ: math, science, english)"
-    )
+    st.markdown("### 📚 Tài liệu & Agent Metadata")
+    # Category Tag / Field selection via dynamic checkboxes
+    available_tags = get_all_tag_uuids()
+    st.markdown("**Chọn các tài liệu (Tag Name UUIDs):**")
+    selected_tags = []
+    for tag in available_tags:
+        default_val = True
+        if st.sidebar.checkbox(f"📁 {tag}", value=default_val, key=f"sidebar_cb_{tag}"):
+            selected_tags.append(tag)
+    
+    # Active field fallback for other single-field dropdowns/code blocks
+    active_field = selected_tags[0] if selected_tags else (available_tags[0] if available_tags else "default")
     
     # Prompt module selection
     agent_mode = st.selectbox(
@@ -457,7 +527,7 @@ with tab_chatbot:
                     # Retrieve RAG context
                     rag_results = multi_domain_retrieval(
                         query=prompt,
-                        tag_name_uuids=[active_field],
+                        tag_name_uuids=selected_tags if selected_tags else ["math"],
                         doc_type="doc",
                         top_k=3
                     )
@@ -531,7 +601,7 @@ with tab_chatbot:
 with tab_search:
     st.markdown("### 🔍 Kiểm thử & Trích xuất Tài liệu (RAG)")
     st.markdown(
-        f"*Hệ thống đang hoạt động với vai trò: **{user_role.upper()}** trên môn học **{active_field.upper()}**.*"
+        f"*Hệ thống đang hoạt động với vai trò: **{user_role.upper()}** trên tài liệu / Tag UUID **{active_field.upper()}**.*"
     )
     
     # Show active user role constraints warning for clarity
@@ -577,12 +647,12 @@ with tab_search:
             help="Chọn tìm trong collection _{doc} hay _{qa}"
         )
     with col_t2:
-        search_tag_uuids = st.text_input(
-            "Danh sách Miền / Tag UUIDs (phân tách bằng dấu phẩy)",
-            value=active_field,
-            key="search_tag_uuids",
-            help="Ví dụ: math, science, robotics"
-        )
+        st.markdown("**Chọn các Miền / Tag UUIDs:**")
+        tab_selected_tags = []
+        for tag in available_tags:
+            default_val = tag in selected_tags
+            if st.checkbox(f"📁 {tag}", value=default_val, key=f"tab_search_cb_{tag}"):
+                tab_selected_tags.append(tag)
 
     if st.button("Tra cứu RAG"):
         if not user_query.strip():
@@ -590,11 +660,9 @@ with tab_search:
         else:
             with st.spinner("Đang tìm kiếm trong cơ sở dữ liệu Vector... 💭"):
                 try:
-                    tag_uuids_list = [t.strip().lower() for t in search_tag_uuids.split(",") if t.strip()]
-                    
                     results = multi_domain_retrieval(
                         query=user_query,
-                        tag_name_uuids=tag_uuids_list,
+                        tag_name_uuids=tab_selected_tags if tab_selected_tags else ["math"],
                         doc_type=search_type,
                         top_k=top_k
                     )
@@ -667,44 +735,36 @@ with tab_upload:
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
         st.markdown("#### 2. Metadata & Phân quyền (RBAC)")
         
-        # Tag/Field input (Subject field)
-        upload_field = st.text_input(
-            "Danh mục / Category Tag",
-            value="math",
-            key="upload_field",
-            help="Tên môn học viết liền không dấu để tạo phân vùng dữ liệu riêng biệt."
-        )
+        # Tag/Field input (Subject field) - Autogenerated Tag Name UUID
+        if "upload_tag_name_uuid" not in st.session_state:
+            import uuid
+            import time
+            st.session_state.upload_tag_name_uuid = f"{uuid.uuid4()}_{int(time.time())}"
+            
+        col_uuid1, col_uuid2 = st.columns([5, 1])
+        with col_uuid1:
+            upload_field = st.text_input(
+                "Tag Name UUID (ID tài liệu tự sinh)",
+                value=st.session_state.upload_tag_name_uuid,
+                disabled=True,
+                help="Mã UUID duy nhất của tài liệu được tự động sinh ra cho phiên nạp này để tránh trùng lặp."
+            )
+        with col_uuid2:
+            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+            if st.button("🔄", help="Tạo mã UUID mới"):
+                import uuid
+                import time
+                st.session_state.upload_tag_name_uuid = f"{uuid.uuid4()}_{int(time.time())}"
+                st.rerun()
         
-        # RBAC Info (Dropdown visibility)
-        upload_visibility = st.selectbox(
-            "Mức phân quyền (RBAC Info / Visibility)",
-            options=["public", "teacher_only", "admin_only"],
-            key="upload_visibility",
-            help="Quyết định vai trò nào được phép tra cứu tài liệu này."
-        )
+
         
-        # ACL fields
-        upload_owner_id = st.text_input(
-            "Mã chủ sở hữu (Owner ID)",
-            value="",
-            key="upload_owner_id",
-            help="User ID của chủ sở hữu tài liệu này."
-        )
-        
-        # Allowed Group
-        upload_allowed_group = st.text_input(
-            "Nhóm được phép truy cập (Allowed Group)",
-            value="",
-            key="upload_allowed_group",
-            help="Tên của nhóm được phép truy cập tài liệu này (ví dụ: teacher, hr)."
-        )
-        
-        # Allowed User
-        upload_allowed_user = st.text_input(
-            "Người được phép truy cập (Allowed User)",
-            value="",
-            key="upload_allowed_user",
-            help="User ID của một người dùng cụ thể được phép truy cập."
+        # Organization ID input
+        upload_org_id = st.text_input(
+            "Mã Tổ chức (Organization ID)",
+            value="org_default",
+            key="upload_org_id",
+            help="Mã định danh của tổ chức/đơn vị sở hữu tài liệu này."
         )
         
         # Volume
@@ -841,25 +901,20 @@ with tab_upload:
                     
                     status.write("Đang tiến hành gửi yêu cầu nạp tài liệu tới FastAPI Backend (Port 8080)...")
                     
-                    backend_ingest_url = "http://localhost:8080/api/ingest"
+                    backend_ingest_url = "http://localhost:8080/api/ingestion"
                     payload = {
                         "force": force_ocr,
-                        "field": field_val,
-                        "visibility": upload_visibility,
+                        "tag_name_uuid": field_val,
                         "file_path": pdf_path_val,
                         "volume": str(upload_volume),
                         "description": upload_description if upload_description else None,
-                        "file_id": file_id_val,
                         "file_name": file_name_val,
-                        "owner_id": upload_owner_id if upload_owner_id else None,
-                        "allowed_group": upload_allowed_group if upload_allowed_group else None,
-                        "allowed_user": upload_allowed_user if upload_allowed_user else None,
                         "mode": upload_mode,
-                        "datetime_str": upload_datetime if upload_datetime else None,
+                        "datetime": upload_datetime if upload_datetime else None,
                         "doc_type": upload_doc_type,
-                        "collection_name_override": f"{field_val.strip().lower()}_{upload_doc_type}",
                         "step_ocr": step_ocr,
-                        "step_ingest": step_ingest
+                        "step_ingest": step_ingest,
+                        "org_id": upload_org_id
                     }
                     
                     res = requests.post(backend_ingest_url, json=payload, timeout=900)
@@ -871,7 +926,10 @@ with tab_upload:
                         raise ValueError(f"Lỗi từ FastAPI Backend: {err_detail}")
                     
                     status.update(label="✅ Nạp dữ liệu hoàn tất!", state="complete", expanded=True)
-                    st.success(f"🎉 Đã nạp thành công tài liệu **{file_name_val}** vào môn học **'{field_val}'** với phân quyền **'{upload_visibility}'**!")
+                    st.success(f"🎉 Đã nạp thành công tài liệu **{file_name_val}** với Tag Name UUID **'{field_val}'** (Phân quyền mặc định: 'public')!")
+                    import uuid
+                    import time
+                    st.session_state.upload_tag_name_uuid = f"{uuid.uuid4()}_{int(time.time())}"
                     
                 except Exception as e:
                     status.update(label="❌ Nạp dữ liệu thất bại!", state="error", expanded=True)
@@ -895,12 +953,12 @@ with tab_api_retrieval:
             key="api_tab_query",
             help="Chuỗi câu hỏi hoặc từ khóa cần tra cứu vector (Ví dụ: 'số liền trước là gì', 'bài toán trang 15')"
         )
-        api_tag_uuids = st.text_input(
-            "🏷️ Danh sách Tag / Domain UUIDs (phân tách bằng dấu phẩy)",
-            value=active_field,
-            key="api_tab_tags",
-            help="Ví dụ: math, science, stem"
-        )
+        st.markdown("**Chọn các Miền / Tag UUIDs:**")
+        api_tab_selected_tags = []
+        for tag in available_tags:
+            default_val = tag in selected_tags
+            if st.checkbox(f"📁 {tag}", value=default_val, key=f"tab_api_cb_{tag}"):
+                api_tab_selected_tags.append(tag)
         
     with col_api2:
         api_doc_type = st.selectbox(
@@ -915,7 +973,7 @@ with tab_api_retrieval:
     with col_opt1:
         exec_mode = st.radio(
             "🛠️ Phương thức thực thi:",
-            options=["Nội bộ (Direct Python Call)", "REST API (POST http://localhost:8000/api/retrieval)"],
+            options=["Nội bộ (Direct Python Call)", "REST API (POST http://localhost:8080/api/retrieval)"],
             index=0,
             horizontal=True,
             key="api_tab_exec_mode"
@@ -929,7 +987,7 @@ with tab_api_retrieval:
         if not api_query_text.strip():
             st.error("❌ Vui lòng nhập truy vấn trước khi chạy thử.")
         else:
-            tags_list = [t.strip().lower() for t in api_tag_uuids.split(",") if t.strip()]
+            tags_list = api_tab_selected_tags if api_tab_selected_tags else ["math"]
             start_time = time.time()
             
             with st.spinner("Đang thực thi Retrieval & Trích xuất danh sách Vector... 💭"):
@@ -945,7 +1003,7 @@ with tab_api_retrieval:
                             "type": api_doc_type,
                             "top_k": api_top_k
                         }
-                        res = requests.post("http://localhost:8000/api/retrieval", json=api_payload, timeout=10)
+                        res = requests.post("http://localhost:8080/api/retrieval", json=api_payload, timeout=10)
                         if res.status_code == 200:
                             resp_json = res.json()
                             results = resp_json.get("results", [])
@@ -954,7 +1012,7 @@ with tab_api_retrieval:
                             err_message = res.text
                     except Exception as e:
                         status_code_str = "Connection Failed"
-                        err_message = f"Không thể kết nối tới REST API Backend tại http://localhost:8000. Lỗi: {e}"
+                        err_message = f"Không thể kết nối tới REST API Backend tại http://localhost:8080. Lỗi: {e}"
                 else:
                     try:
                         results = multi_domain_retrieval(
@@ -1109,14 +1167,19 @@ with tab_preview:
             else:
                 st.info("Chưa có tài liệu nào được nạp.")
         else:
-            st.info("Chưa có collection nào hoạt động cho môn học này.")
+            st.info("Chưa có collection nào hoạt động cho tài liệu / Tag UUID này.")
     except Exception as e:
         st.error(f"Lỗi khi tải danh sách tài liệu: {e}")
     st.markdown("---")
     
     col_p1, col_p2, col_p3 = st.columns([1, 1, 1])
     with col_p1:
-        preview_field = st.text_input("Xem môn học (Field)", value=active_field, key="preview_field")
+        preview_field = st.selectbox(
+            "Xem tài liệu (Tag Name UUID)",
+            options=available_tags if available_tags else ["math"],
+            index=available_tags.index(active_field) if active_field in available_tags else 0,
+            key="preview_field"
+        )
     with col_p2:
         preview_role = st.selectbox(
             "Xem dưới quyền vai trò (Role)",
@@ -1139,7 +1202,7 @@ with tab_preview:
         # Verify collection exists
         collections = [c.name for c in client.list_collections()]
         if col_name not in collections:
-            st.info(f"ℹ️ Không tìm thấy collection: `{col_name}`. Môn học này có thể chưa được nạp dữ liệu.")
+            st.info(f"ℹ️ Không tìm thấy collection: `{col_name}`. Tài liệu này có thể chưa được nạp dữ liệu.")
         else:
             collection = get_or_create_collection(client, embedding_fn, collection_name=col_name)
             total_records = collection.count()
@@ -1384,10 +1447,14 @@ with tab_live_test:
     col_lt_cfg1, col_lt_cfg2 = st.columns(2)
     with col_lt_cfg1:
         n8n_url_lt = st.text_input(
-            "🔗 n8n Production Webhook URL", 
-            value="http://localhost:5678/webhook/COEDNaQ6fu6k1xeE/webhook/rag-math-assistant",
-            key="lt_n8n_url"
+            "🔗 n8n Webhook URL", 
+            value="http://localhost:5678/webhook/rag-math-assistant",
+            key="lt_n8n_url",
+            help="Điền URL Webhook n8n. Nếu kiểm thử thủ công, đổi '/webhook/' thành '/webhook-test/'."
         )
+        st.info("💡 **Mẹo sửa lỗi 404 Webhook:**\n"
+                "- Nếu workflow n8n **đang tắt** (Inactive): Hãy đổi chữ `/webhook/` trong URL thành `/webhook-test/` và click nút **'Listen for test event'** trong n8n trước khi chạy thử.\n"
+                "- Nếu muốn chạy chính thức: Hãy **kích hoạt** workflow bằng cách gạt nút **'Active'** ở góc trên cùng bên phải giao diện n8n.")
     with col_lt_cfg2:
         lt_profile = st.text_input("📁 prompt_profile", value="default", key="lt_profile")
         lt_version_str = st.text_input("🔢 prompt_version (Tùy chọn, để trống = active)", value="", key="lt_version")
@@ -1429,7 +1496,23 @@ with tab_live_test:
                 
     st.markdown("#### 📝 Nội dung câu hỏi thử nghiệm")
     lt_prompt = st.text_area("Câu hỏi (Prompt)", value="Con muốn làm bài 2 trang 15 tập 1 nhưng chưa biết bắt đầu thế nào. Cô gợi ý cho con được không?", height=100, key="lt_prompt")
-    lt_subject = st.text_input("📚 Môn học (Subject)", value="math", key="lt_subject")
+    
+    col_lt_t1, col_lt_t2 = st.columns(2)
+    with col_lt_t1:
+        st.markdown("**Chọn các tài liệu (Tag Name UUIDs):**")
+        lt_selected_tags = []
+        for tag in available_tags:
+            default_val = tag in selected_tags
+            if st.checkbox(f"📁 {tag}", value=default_val, key=f"lt_cb_{tag}"):
+                lt_selected_tags.append(tag)
+                
+    with col_lt_t2:
+        st.markdown("**Chọn các Tổ chức (Organization IDs):**")
+        available_orgs = get_all_org_ids()
+        lt_selected_orgs = []
+        for org in available_orgs:
+            if st.checkbox(f"🏢 {org}", value=True, key=f"lt_org_cb_{org}"):
+                lt_selected_orgs.append(org)
     
     if st.button("🚀 Thực thi Live Test", type="primary", use_container_width=True, key="btn_run_lt"):
         if not lt_prompt.strip():
@@ -1440,7 +1523,8 @@ with tab_live_test:
                 try:
                     payload = {
                         "prompt": lt_prompt,
-                        "subject": lt_subject,
+                        "tag_name_uuid": lt_selected_tags if lt_selected_tags else ["math"],
+                        "org_id": lt_selected_orgs if lt_selected_orgs else ["org_default"],
                         "prompt_profile": lt_profile,
                         "prompt_version": lt_version,
                         "prompt_overrides": prompt_overrides

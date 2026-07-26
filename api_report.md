@@ -255,6 +255,54 @@ curl -X POST "http://localhost:8080/ingestion" \
 }
 ```
 
+---
+
+## 3. Document Outline API (`POST /api/outline`, `GET /api/outline`)
+
+### Endpoint Details
+- **HTTP Method:** `POST` or `GET`
+- **URL Path:** `/api/outline` (alias `/outline`)
+- **Headers:** `Content-Type: application/json`
+
+### Description
+Retrieves the structured table of contents / syllabus outline for documents matching the provided `tag_name_uuids` and `org_ids`. Returns unique lesson entries sorted by page order and volume.
+
+### Request Payload (`POST /api/outline`)
+```json
+{
+  "tag_name_uuids": ["4d0e34cc-a2e8-44ba-945b-c95d73cd86c1_1785060684"],
+  "doc_type": "doc",
+  "org_ids": ["org_default"]
+}
+```
+
+### Response (`200 OK`)
+```json
+{
+  "status": "success",
+  "tag_name_uuids": ["4d0e34cc-a2e8-44ba-945b-c95d73cd86c1_1785060684"],
+  "org_ids": ["org_default"],
+  "doc_type": "doc",
+  "total_files": 1,
+  "outline": {
+    "SGK_TOAN_4_T1_s1_2.pdf": [
+      {
+        "lesson_name": "LUYỆN TẬP CHUNG",
+        "physical_page": 22,
+        "pdf_page_index": 16,
+        "pdf_page_number": 17,
+        "volume": "1",
+        "tag_name_uuid": "4d0e34cc-a2e8-44ba-945b-c95d73cd86c1_1785060684",
+        "file_id": "4d0e34cc-a2e8-44ba-945b-c95d73cd86c1_1785060684",
+        "file_path": "data/uploads/SGK_TOAN_4_T1_s1_2.pdf",
+        "org_id": "org_default",
+        "doc_type": "doc"
+      }
+    ]
+  }
+}
+```
+
 #### `500 Internal Server Error` — Query Processing Error
 ```json
 {

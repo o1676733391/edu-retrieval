@@ -105,9 +105,9 @@ class QdrantVectorStore(BaseVectorStore):
         query_vector = self.embedding_function([query_text])[0]
         q_filter = convert_chroma_filter_to_qdrant(where)
         
-        res = self.client.search(
+        res = self.client.query_points(
             collection_name=self.collection_name,
-            query_vector=query_vector,
+            query=query_vector,
             query_filter=q_filter,
             limit=top_k * 2,  # Request top_k * 2 to match the RRF hybrid dense retrieval count
             with_payload=True
@@ -118,7 +118,7 @@ class QdrantVectorStore(BaseVectorStore):
         metadatas = []
         distances = []
         
-        for hit in res:
+        for hit in res.points:
             # Map Qdrant cosine similarity (score) back to cosine distance
             # cosine similarity = 1 - cosine distance
             distance = 1.0 - hit.score

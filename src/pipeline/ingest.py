@@ -116,7 +116,8 @@ def run_ingest(
     doc_type: str = "doc",
     collection_name_override: str = None,
     step_ocr: bool = True,
-    step_ingest: bool = True
+    step_ingest: bool = True,
+    org_id: str = "org_default"
 ):
     """
     Main ingestion script. 
@@ -314,24 +315,26 @@ def run_ingest(
         if not text_content:
             text_content = f"Sách giáo khoa Toán 3 Tập {page['volume']} - Trang {phys_page or page['pdf_page_index']}: [Trang trắng hoặc không có nội dung văn bản]"
             
-        # Save metadata fields including visibility and field
+        # Save metadata fields including visibility
+        tag_uuid_val = str(file_id) if file_id else str(field)
         meta_entry = {
             "volume": str(page["volume"]),
             "physical_page": int(phys_page) if phys_page is not None else -1,
             "pdf_page_index": int(page["pdf_page_index"]),
             "pdf_page_number": int(page.get("pdf_page_number", page["pdf_page_index"] + 1)),
             "lesson_name": str(page["lesson_name"]) if page["lesson_name"] else "Unknown",
-            "field": str(field),
             "visibility": str(visibility),
             "created_at": str(created_at_val),
             "created_at_timestamp": float(created_at_ts),
-            "doc_type": str(doc_type)
+            "doc_type": str(doc_type),
+            "page_content": str(text_content),
+            "tag_name_uuid": tag_uuid_val,
+            "file_id": tag_uuid_val,
+            "_original_id": str(doc_id),
+            "org_id": str(org_id)
         }
         if description:
             meta_entry["description"] = str(description)
-        if file_id:
-            meta_entry["file_id"] = str(file_id)
-            meta_entry["tag_name_uuid"] = str(file_id)
         if file_name:
             meta_entry["file_name"] = str(file_name)
         if pdf_path:

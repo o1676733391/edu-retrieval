@@ -34,6 +34,8 @@ class TestEducationalAssistant(unittest.TestCase):
             ("trang 15 tap 2", 15, "2"),          # ASCII non-accented volume abbr
             ("tr. 98 tập i", 98, "1"),             # tr. prefix + Vietnamese Roman numeral
             ("trang 14 tập hai", 14, "2"),         # Vietnamese word "hai" for vol 2
+            ("giải bài tập 2 trang số 10", 10, None), # "trang số X" variation
+            ("trang thứ 10", 10, None),             # "trang thứ X" variation
             ("trang một trăm lẻ năm tập 1", None, "1")  # text numbers not matched (expected)
         ]
         for q, expected_page, expected_vol in queries:
@@ -365,7 +367,8 @@ class TestEducationalAssistant(unittest.TestCase):
             doc_type="doc",
             collection_name_override="tag_science_999_doc",
             step_ocr=True,
-            step_ingest=True
+            step_ingest=True,
+            org_id="org_default"
         )
 
     @unittest.mock.patch('src.api.main.multi_domain_retrieval')
@@ -395,7 +398,8 @@ class TestEducationalAssistant(unittest.TestCase):
             doc_type="qa",
             from_date="2026-07-01",
             to_date="2026-07-31",
-            top_k=5
+            top_k=5,
+            org_ids=[]
         )
 
 class TestPromptRegistry(unittest.TestCase):
@@ -557,7 +561,7 @@ class TestPromptRegistry(unittest.TestCase):
         }
         
         # Test outline grouping and sorting
-        outline = get_document_outline("math")
+        outline = get_document_outline()
         self.assertEqual(len(outline), 2)  # Two files: Toan3_Tap1.pdf and Science3.pdf
         
         # Verify Toan3_Tap1.pdf structure
@@ -573,7 +577,79 @@ class TestPromptRegistry(unittest.TestCase):
         self.assertEqual(len(science_lessons), 1)
         self.assertEqual(science_lessons[0]["lesson_name"], "Lesson 1: Plants and Animals")
 
+    @unittest.mock.patch('src.vector_store.client.get_vector_store')
+    def test_get_document_outline_new_metadata(self, mock_get_store):
+        from src.vector_store.search import get_document_outline
+        
+        mock_store = unittest.mock.MagicMock()
+        mock_get_store.return_value = mock_store
+        
+        # Mock get_all to return document chunks with new metadata structure
+        mock_store.get_all.return_value = {
+            "metadatas": [
+                {
+                    "volume": "1",
+                    "physical_page": 22,
+                    "pdf_page_index": 16,
+                    "pdf_page_number": 17,
+                    "lesson_name": "LUYỆN TẬP CHUNG",
+                    "visibility": "public",
+                    "doc_type": "doc",
+                    "tag_name_uuid": "4d0e34cc-a2e8-44ba-945b-c95d73cd86c1_1785060684",
+                    "file_id": "4d0e34cc-a2e8-44ba-945b-c95d73cd86c1_1785060684",
+                    "_original_id": "4d0e34cc-a2e8-44ba-945b-c95d73cd86c1_1785060684_p22_idx16",
+                    "org_id": "org_default",
+                    "file_name": "SGK_TOAN_4_T1_s1_2.pdf",
+                    "file_path": "data/uploads/SGK_TOAN_4_T1_s1_2.pdf"
+                }
+            ]
+        }
+        
+        outline = get_document_outline(tag_name_uuids=["4d0e34cc-a2e8-44ba-945b-c95d73cd86c1_1785060684"])
+        self.assertIn("SGK_TOAN_4_T1_s1_2.pdf", outline)
+        lessons = outline["SGK_TOAN_4_T1_s1_2.pdf"]
+        self.assertEqual(len(lessons), 1)
+        self.assertEqual(lessons[0]["lesson_name"], "LUYỆN TẬP CHUNG")
+        self.assertEqual(lessons[0]["physical_page"], 22)
+        self.assertEqual(lessons[0]["pdf_page_number"], 17)
+        self.assertEqual(lessons[0]["tag_name_uuid"], "4d0e34cc-a2e8-44ba-945b-c95d73cd86c1_1785060684")
+
+    @unittest.mock.patch('src.vector_store.search.get_document_outline')
+    def test_outline_api_endpoints(self, mock_outline):
+        from fastapi.testclient import TestClient
+        from src.api.main import app
+        api_client = TestClient(app)
+
+        mock_outline.return_value = {
+            "SGK_TOAN_4_T1_s1_2.pdf": [
+                {
+                    "lesson_name": "LUYỆN TẬP CHUNG",
+                    "physical_page": 22,
+                    "pdf_page_number": 17,
+                    "volume": "1"
+                }
+            ]
+        }
+        
+        # Test GET /api/outline
+        res_get = api_client.get("/api/outline")
+        self.assertEqual(res_get.status_code, 200)
+        self.assertEqual(res_get.json()["status"], "success")
+        self.assertIn("SGK_TOAN_4_T1_s1_2.pdf", res_get.json()["outline"])
+        
+        # Test POST /api/outline
+        res_post = api_client.post("/api/outline", json={
+            "tag_name_uuids": ["4d0e34cc-a2e8-44ba-945b-c95d73cd86c1_1785060684"],
+            "doc_type": "doc"
+        })
+        self.assertEqual(res_post.status_code, 200)
+        self.assertEqual(res_post.json()["status"], "success")
+        self.assertIn("SGK_TOAN_4_T1_s1_2.pdf", res_post.json()["outline"])
+
+
+
 if __name__ == "__main__":
     unittest.main()
+
 
 

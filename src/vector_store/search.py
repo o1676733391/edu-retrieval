@@ -47,11 +47,10 @@ def extract_hints_from_query(query: str) -> tuple[int | None, str | None]:
     elif re.search(r'\bsgk\s*2\b', query, re.IGNORECASE):
         volume_hint = "2"
 
-    # 2. Page extraction: only accept unambiguous keywords "trang" or "tr."
-    #    Avoid single-letter "t" and "p" which falsely match "tập" digit.
-    page_match = re.search(r'\b(trang|tr)\.?\s*(\d+)\b', query, re.IGNORECASE)
+    # 2. Page extraction: accept unambiguous keywords "trang", "tr.", "trang số", "trang thứ", "trang số:"
+    page_match = re.search(r'\b(?:trang|tr)\.?(?:\s+s[ốô]|\s+th[ứu]|s[ốô]|\s*:)?\s*(\d+)\b', query, re.IGNORECASE)
     if page_match:
-        page_hint = int(page_match.group(2))
+        page_hint = int(page_match.group(1))
 
     return page_hint, volume_hint
 
@@ -274,7 +273,8 @@ def multi_domain_retrieval(
     doc_type: str = "doc",
     from_date: str = None,
     to_date: str = None,
-    top_k: int = 5
+    top_k: int = 5,
+    org_ids: list[str] = None
 ) -> list[dict]:
     """
     Performs retrieval across multiple tag/domain collections with type filtering ("doc" vs "qa")
@@ -310,9 +310,9 @@ def multi_domain_retrieval(
         target_cols_to_search = []
         
         if col_name in existing_cols:
-            target_cols_to_search.append((col_name, None))
-        if curriculum_col in existing_cols and (curriculum_col, None) not in target_cols_to_search:
-            target_cols_to_search.append((curriculum_col, None))
+            target_cols_to_search.append((col_name, tag_clean))
+        if curriculum_col in existing_cols and (curriculum_col, tag_clean) not in target_cols_to_search:
+            target_cols_to_search.append((curriculum_col, tag_clean))
             
         if not target_cols_to_search:
             # Fallback: search all collections matching doc_type, tag_clean, or default curriculum
@@ -337,6 +337,11 @@ def multi_domain_retrieval(
             filters = []
             if meta_tag_filter:
                 filters.append({"$or": [{"file_id": meta_tag_filter}, {"tag_name_uuid": meta_tag_filter}]})
+            if org_ids:
+                if len(org_ids) == 1:
+                    filters.append({"org_id": org_ids[0]})
+                else:
+                    filters.append({"org_id": {"$in": org_ids}})
                 
             if volume_hint:
                 filters.append({"volume": str(volume_hint)})
@@ -387,6 +392,26 @@ def multi_domain_retrieval(
                         dense_docs[doc_id] = query_res["documents"][0][idx]
                         dense_metas[doc_id] = query_res["metadatas"][0][idx]
                         dense_dists[doc_id] = query_res["distances"][0][idx] if "distances" in query_res and query_res["distances"] else 0.0
+
+                # Fallback: if strict page/volume filter yielded 0 dense results, retry without page/volume filters
+                if not dense_ids and where_filter and (page_hint or volume_hint):
+                    fallback_filters = []
+                    if meta_tag_filter:
+                        fallback_filters.append({"$or": [{"file_id": meta_tag_filter}, {"tag_name_uuid": meta_tag_filter}]})
+                    if org_ids:
+                        if len(org_ids) == 1:
+                            fallback_filters.append({"org_id": org_ids[0]})
+                        else:
+                            fallback_filters.append({"org_id": {"$in": org_ids}})
+                    fallback_where = fallback_filters[0] if len(fallback_filters) == 1 else ({"$and": fallback_filters} if len(fallback_filters) > 1 else None)
+                    
+                    fb_res = vector_store.query(query_text=query, top_k=top_k, where=fallback_where)
+                    if fb_res and fb_res["ids"] and fb_res["ids"][0]:
+                        for idx, doc_id in enumerate(fb_res["ids"][0]):
+                            dense_ids.append(doc_id)
+                            dense_docs[doc_id] = fb_res["documents"][0][idx]
+                            dense_metas[doc_id] = fb_res["metadatas"][0][idx]
+                            dense_dists[doc_id] = fb_res["distances"][0][idx] if "distances" in fb_res and fb_res["distances"] else 0.0
             except Exception as e:
                 print(f"Error querying dense vectors for collection {c_name}: {e}")
                 
@@ -394,6 +419,17 @@ def multi_domain_retrieval(
             bm25_results = []
             try:
                 all_docs = vector_store.get_all(where=where_filter if where_filter else None)
+                if (not all_docs or not all_docs.get("ids")) and where_filter and (page_hint or volume_hint):
+                    fallback_filters = []
+                    if meta_tag_filter:
+                        fallback_filters.append({"$or": [{"file_id": meta_tag_filter}, {"tag_name_uuid": meta_tag_filter}]})
+                    if org_ids:
+                        if len(org_ids) == 1:
+                            fallback_filters.append({"org_id": org_ids[0]})
+                        else:
+                            fallback_filters.append({"org_id": {"$in": org_ids}})
+                    fallback_where = fallback_filters[0] if len(fallback_filters) == 1 else ({"$and": fallback_filters} if len(fallback_filters) > 1 else None)
+                    all_docs = vector_store.get_all(where=fallback_where)
                     
                 if all_docs and all_docs["ids"]:
                     corpus = all_docs["documents"]
@@ -450,81 +486,223 @@ def multi_domain_retrieval(
     return all_candidate_results[:top_k]
 
 
-def get_document_outline(field: str) -> dict[str, list[dict]]:
+from typing import Optional, Union, List
+
+def get_document_outline(
+    tag_name_uuids: Optional[Union[list[str], str]] = None,
+    doc_type: str = "doc",
+    org_ids: Optional[Union[list[str], str]] = None
+) -> dict[str, list[dict]]:
     """
-    Retrieves the syllabus/outline structure for all documents in the specified field.
+    Retrieves the syllabus/outline structure for all documents in the specified tags.
+    Supports multi-domain tag_name_uuids, org_ids, and metadata structure (tag_name_uuid, file_id,
+    file_name, file_path, pdf_page_number, physical_page, volume, org_id, doc_type, etc.).
     Groups by file_name and extracts unique lesson names sorted by page index.
     """
-    from src.vector_store.client import get_vector_store
-    vector_store = get_vector_store(field)
-    
-    results = vector_store.get_all()
-    if not results or "metadatas" not in results:
+    import json
+    from src import config
+    from src.vector_store.client import get_vector_store, get_vector_db_client
+
+    # Standardize tag_name_uuids to list[str]
+    clean_tag_uuids = []
+    if tag_name_uuids:
+        if isinstance(tag_name_uuids, str):
+            val_str = tag_name_uuids.strip()
+            if val_str.startswith("[") and val_str.endswith("]"):
+                try:
+                    parsed = json.loads(val_str)
+                    if isinstance(parsed, list):
+                        clean_tag_uuids = [str(x).strip("'\" ") for x in parsed if str(x).strip("'\" ")]
+                    else:
+                        clean_tag_uuids = [val_str.strip("'\" ")]
+                except Exception:
+                    clean_tag_uuids = [val_str.strip("'\" ")]
+            elif "," in val_str:
+                clean_tag_uuids = [x.strip("'\" ") for x in val_str.split(",") if x.strip("'\" ")]
+            else:
+                clean_tag_uuids = [val_str.strip("'\" ")]
+        elif isinstance(tag_name_uuids, list):
+            for item in tag_name_uuids:
+                if isinstance(item, str):
+                    s = item.strip()
+                    if s.startswith("[") and s.endswith("]"):
+                        try:
+                            parsed = json.loads(s)
+                            if isinstance(parsed, list):
+                                clean_tag_uuids.extend([str(x).strip("'\" ") for x in parsed if str(x).strip("'\" ")])
+                                continue
+                        except Exception:
+                            pass
+                    clean_tag_uuids.append(s.strip("'\" "))
+                elif item:
+                    clean_tag_uuids.append(str(item))
+
+    # Standardize org_ids to list[str]
+    clean_org_ids = []
+    if org_ids:
+        if isinstance(org_ids, str):
+            val_str = org_ids.strip()
+            if val_str.startswith("[") and val_str.endswith("]"):
+                try:
+                    parsed = json.loads(val_str)
+                    if isinstance(parsed, list):
+                        clean_org_ids = [str(x).strip("'\" ") for x in parsed if str(x).strip("'\" ")]
+                    else:
+                        clean_org_ids = [val_str.strip("'\" ")]
+                except Exception:
+                    clean_org_ids = [val_str.strip("'\" ")]
+            elif "," in val_str:
+                clean_org_ids = [x.strip("'\" ") for x in val_str.split(",") if x.strip("'\" ")]
+            else:
+                clean_org_ids = [val_str.strip("'\" ")]
+        elif isinstance(org_ids, list):
+            for item in org_ids:
+                if isinstance(item, str):
+                    s = item.strip()
+                    clean_org_ids.append(s.strip("'\" "))
+                elif item:
+                    clean_org_ids.append(str(item))
+
+    # Discover target collections
+    if config.VECTOR_DB_BACKEND == "qdrant":
+        from qdrant_client import QdrantClient
+        if config.QDRANT_HOST:
+            q_client = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
+        else:
+            q_client = QdrantClient(path=str(config.DATA_DIR / "qdrant_db"))
+        existing_cols = [c.name for c in q_client.get_collections().collections]
+    else:
+        client = get_vector_db_client()
+        existing_cols = [c.name for c in client.list_collections()]
+
+    target_collections = []
+    if clean_tag_uuids:
+        for tag in clean_tag_uuids:
+            tag_clean = tag.strip().lower()
+            if not tag_clean:
+                continue
+            col_name = f"{tag_clean}_{doc_type}"
+            curriculum_col = f"{config.COLLECTION_NAME}_{tag_clean}"
+            
+            matched = False
+            if col_name in existing_cols:
+                target_collections.append((col_name, tag_clean))
+                matched = True
+            if curriculum_col in existing_cols and (curriculum_col, tag_clean) not in target_collections:
+                target_collections.append((curriculum_col, tag_clean))
+                matched = True
+            if not matched:
+                for c in existing_cols:
+                    if c == tag_clean or c.endswith(f"_{tag_clean}"):
+                        target_collections.append((c, tag_clean))
+
+    if not target_collections:
+        # Fallback: query all existing collections
+        for c in existing_cols:
+            target_collections.append((c, c))
+
+    # Deduplicate target collections
+    unique_target_cols = []
+    seen_col_names = set()
+    for c_name, tag_ref in target_collections:
+        if c_name not in seen_col_names:
+            seen_col_names.add(c_name)
+            unique_target_cols.append((c_name, tag_ref))
+
+    all_metadatas = []
+    for c_name, tag_ref in unique_target_cols:
+        try:
+            vector_store = get_vector_store(field=tag_ref, collection_name_override=c_name)
+            res = vector_store.get_all()
+            if res and "metadatas" in res and res["metadatas"]:
+                for m in res["metadatas"]:
+                    if m:
+                        all_metadatas.append(m)
+        except Exception as err:
+            print(f"[Warning] Outline retrieval collection error on '{c_name}': {err}")
+
+    if not all_metadatas:
         return {}
-        
-    # Group by file identification
-    # key: (file_id, file_name) -> list of chunks metadata
+
+    # Group chunks by file identification
     files_data = {}
-    for meta in results["metadatas"]:
-        # Skip if metadata is empty
-        if not meta:
-            continue
-        file_id = meta.get("file_id", "default_textbook")
-        file_name = meta.get("file_name")
+    for meta in all_metadatas:
+        # Check org_id filter if provided
+        if clean_org_ids:
+            chunk_org = meta.get("org_id", "org_default")
+            if chunk_org not in clean_org_ids:
+                continue
+
+        file_id = meta.get("file_id") or meta.get("tag_name_uuid") or meta.get("_original_id") or "default_textbook"
+        file_name = meta.get("file_name") or meta.get("file_path")
         if not file_name:
             vol = meta.get("volume", "1")
-            file_name = f"Tài liệu {field.upper()} (Tập {vol})"
-            
+            tag_label = meta.get("tag_name_uuid") or "Document"
+            file_name = f"Tài liệu {tag_label} (Tập {vol})"
+
         file_key = (file_id, file_name)
         if file_key not in files_data:
             files_data[file_key] = []
         files_data[file_key].append(meta)
-        
+
     outline_by_file = {}
     for (file_id, file_name), metas in files_data.items():
-        # Extract unique lessons
-        # We want to keep track of first appearance page to sort them properly
         lessons_seen = {}
         for m in metas:
-            lesson = m.get("lesson_name") or "Unknown"
-            # Normalize lesson name for uniqueness check, but keep original casing
+            lesson = m.get("lesson_name") or m.get("lesson") or "Unknown"
             lesson_norm = lesson.strip().lower()
-            
-            phys_page = m.get("physical_page", -1)
+
+            phys_page = m.get("physical_page")
+            if phys_page is None:
+                phys_page = m.get("pdf_page_number")
+            if phys_page is None:
+                phys_page = m.get("pdf_page_index", -1)
+
             pdf_idx = m.get("pdf_page_index", 0)
+            pdf_num = m.get("pdf_page_number")
+            if pdf_num is None:
+                pdf_num = int(pdf_idx) + 1 if int(pdf_idx) >= 0 else 1
+
             vol = m.get("volume", "1")
-            
+            tag_uuid = m.get("tag_name_uuid") or m.get("file_id") or ""
+            file_path = m.get("file_path", "")
+            org_id_val = m.get("org_id", "org_default")
+            doc_type_val = m.get("doc_type", doc_type)
+
             page_sort_key = (
                 int(vol) if str(vol).isdigit() else 1,
-                int(phys_page) if phys_page > 0 else 9999,
+                int(phys_page) if int(phys_page) > 0 else 9999,
                 int(pdf_idx)
             )
-            
+
             if lesson_norm not in lessons_seen or page_sort_key < lessons_seen[lesson_norm]["sort_key"]:
                 lessons_seen[lesson_norm] = {
                     "lesson_name": lesson,
                     "physical_page": phys_page,
                     "pdf_page_index": pdf_idx,
+                    "pdf_page_number": pdf_num,
                     "volume": vol,
+                    "tag_name_uuid": tag_uuid,
+                    "file_id": file_id,
+                    "file_path": file_path,
+                    "org_id": org_id_val,
+                    "doc_type": doc_type_val,
                     "sort_key": page_sort_key
                 }
-                
-        # Sort lessons by page order
+
         sorted_lessons = sorted(lessons_seen.values(), key=lambda x: x["sort_key"])
-        
-        # Remove sort_key from output
+
         cleaned_lessons = []
         for l in sorted_lessons:
-            cleaned_lessons.append({
-                "lesson_name": l["lesson_name"],
-                "physical_page": l["physical_page"],
-                "pdf_page_index": l["pdf_page_index"],
-                "volume": l["volume"]
-            })
-            
+            item = dict(l)
+            item.pop("sort_key", None)
+            cleaned_lessons.append(item)
+
         outline_by_file[file_name] = cleaned_lessons
-        
+
     return outline_by_file
+
+
 
 
 

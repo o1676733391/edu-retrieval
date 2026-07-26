@@ -78,6 +78,7 @@ class IngestionPayloadRequest(BaseModel):
     doc_type: Optional[str] = "doc"  # "doc" | "qa"
     volume: Optional[str] = "1"
     force: Optional[bool] = False
+    org_id: Optional[str] = "org_default"
     
     # Modular execution steps
     step_ocr: Optional[bool] = True
@@ -91,6 +92,13 @@ class RetrievalPayloadRequest(BaseModel):
     from_date: Optional[str] = None
     to_date: Optional[str] = None
     top_k: Optional[int] = 5
+    org_ids: Optional[Union[List[str], str]] = None
+
+
+class OutlinePayloadRequest(BaseModel):
+    tag_name_uuids: Optional[Union[List[str], str]] = None
+    doc_type: Optional[str] = "doc"
+    org_ids: Optional[Union[List[str], str]] = None
 
 
 class SearchRequest(BaseModel):
@@ -448,7 +456,8 @@ def ingestion_endpoint(req: IngestionPayloadRequest):
             doc_type=doc_type_clean,
             collection_name_override=col_override_name,
             step_ocr=req.step_ocr,
-            step_ingest=req.step_ingest
+            step_ingest=req.step_ingest,
+            org_id=req.org_id
         )
         return {
             "status": "success",
@@ -502,19 +511,57 @@ def retrieval_endpoint(req: RetrievalPayloadRequest):
                     cleaned.append(str(item))
             tag_uuids = cleaned
 
-        print(f"[Retrieval API] Incoming Request - text: '{req.text}', tag_name_uuids: {tag_uuids}, type: {req.type}")
+        # Parse org_ids
+        org_ids = req.org_ids
+        if org_ids:
+            if isinstance(org_ids, str):
+                v_stripped = org_ids.strip()
+                if v_stripped.startswith("[") and v_stripped.endswith("]"):
+                    try:
+                        parsed = json.loads(v_stripped)
+                        if isinstance(parsed, list):
+                            org_ids = [str(item).strip("'\" ") for item in parsed]
+                        else:
+                            org_ids = [v_stripped.strip("'\" ")]
+                    except Exception:
+                        org_ids = [v_stripped.strip("'\" ")]
+                else:
+                    org_ids = [v_stripped.strip("'\" ")]
+            elif isinstance(org_ids, list):
+                cleaned_orgs = []
+                for item in org_ids:
+                    if isinstance(item, str):
+                        item_stripped = item.strip()
+                        if item_stripped.startswith("[") and item_stripped.endswith("]"):
+                            try:
+                                parsed = json.loads(item_stripped)
+                                if isinstance(parsed, list):
+                                    cleaned_orgs.extend([str(x).strip("'\" ") for x in parsed])
+                                    continue
+                            except Exception:
+                                pass
+                        cleaned_orgs.append(item_stripped.strip("'\" "))
+                    else:
+                        cleaned_orgs.append(str(item))
+                org_ids = cleaned_orgs
+        else:
+            org_ids = []
+
+        print(f"[Retrieval API] Incoming Request - text: '{req.text}', tag_name_uuids: {tag_uuids}, org_ids: {org_ids}, type: {req.type}")
         results = multi_domain_retrieval(
             query=req.text,
             tag_name_uuids=tag_uuids,
             doc_type=req.type or "doc",
             from_date=req.from_date,
             to_date=req.to_date,
-            top_k=req.top_k or 5
+            top_k=req.top_k or 5,
+            org_ids=org_ids
         )
         print(f"[Retrieval API] Outgoing Response - found {len(results)} results")
         return {
             "text": req.text,
             "tag_name_uuids": tag_uuids,
+            "org_ids": org_ids,
             "type": req.type or "doc",
             "total_results": len(results),
             "results": results
@@ -610,18 +657,57 @@ def activate_prompt_endpoint(req: ActivatePromptRequest):
 
 
 @app.get("/api/outline")
-def get_outline_endpoint(field: str = "math"):
+@app.get("/outline")
+def get_outline_endpoint_get(
+    tag_name_uuids: Optional[Union[List[str], str]] = None,
+    doc_type: Optional[str] = "doc",
+    org_ids: Optional[Union[List[str], str]] = None
+):
     """
-    Returns the table of contents/outline for all documents indexed in the given field,
-    extracted dynamically from chunk metadata.
+    Returns the table of contents/outline for documents matching the given tag_name_uuids or org_ids.
     """
     try:
         from src.vector_store.search import get_document_outline
-        outline = get_document_outline(field)
+        outline = get_document_outline(
+            tag_name_uuids=tag_name_uuids,
+            doc_type=doc_type or "doc",
+            org_ids=org_ids
+        )
         return {
-            "field": field,
+            "status": "success",
+            "tag_name_uuids": tag_name_uuids,
+            "org_ids": org_ids,
+            "doc_type": doc_type or "doc",
+            "total_files": len(outline),
             "outline": outline
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/outline")
+@app.post("/outline")
+def get_outline_endpoint_post(req: OutlinePayloadRequest):
+    """
+    Returns the table of contents/outline for documents matching the given tag_name_uuids or org_ids (POST payload format).
+    """
+    try:
+        from src.vector_store.search import get_document_outline
+        outline = get_document_outline(
+            tag_name_uuids=req.tag_name_uuids,
+            doc_type=req.doc_type or "doc",
+            org_ids=req.org_ids
+        )
+        return {
+            "status": "success",
+            "tag_name_uuids": req.tag_name_uuids,
+            "org_ids": req.org_ids,
+            "doc_type": req.doc_type or "doc",
+            "total_files": len(outline),
+            "outline": outline
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
