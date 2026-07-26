@@ -98,6 +98,9 @@ curl -X POST "http://localhost:8080/create-domain" \
 | `doc_type` | `string` | No | `"doc"` | Content type targeting: `"doc"` (documents) or `"qa"` (Question & Answer pairs). |
 | `volume` | `string` | No | `"1"` | Book volume number (`"1"` or `"2"`). |
 | `force` | `boolean` | No | `false` | If `true`, bypasses OCR cache and re-runs Gemini Vision API. |
+| `org_id` | `string` | No | `"org_default"` | Organization ID this document belongs to. |
+| `step_ocr` | `boolean` | No | `true` | If `false`, skips the OCR extraction step. |
+| `step_ingest` | `boolean` | No | `true` | If `false`, skips the vector indexing step. |
 
 #### Example Request Body
 ```json
@@ -108,7 +111,8 @@ curl -X POST "http://localhost:8080/create-domain" \
   "description": "Robotics hardware handbook 2026",
   "datetime": "2026-07-15T10:00:00Z",
   "mode": "update",
-  "doc_type": "doc"
+  "doc_type": "doc",
+  "org_id": "org_default"
 }
 ```
 
@@ -141,7 +145,8 @@ curl -X POST "http://localhost:8080/ingestion" \
        "tag_name_uuid": "stem_robotics",
        "datetime": "2026-07-15T10:00:00Z",
        "mode": "update",
-       "doc_type": "doc"
+       "doc_type": "doc",
+       "org_id": "org_default"
      }'
 ```
 
