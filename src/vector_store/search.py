@@ -1,5 +1,6 @@
 from src.vector_store.client import get_embedding_function, get_vector_db_client
 from rank_bm25 import BM25Okapi
+from typing import Optional, Union, List
 import re
 
 def extract_hints_from_query(query: str) -> tuple[int | None, str | None]:
@@ -53,6 +54,55 @@ def extract_hints_from_query(query: str) -> tuple[int | None, str | None]:
         page_hint = int(page_match.group(1))
 
     return page_hint, volume_hint
+
+
+def extract_exercise_hint(query: str) -> str | None:
+    """
+    Extracts exercise number/identifier hint from query string.
+    E.g., "giải bài tập 2 trang 10" -> "2"
+    "bài 3a trang 15" -> "3a"
+    """
+    match = re.search(r'\bbài\s*(?:tập\s*)?(\d+[a-z]?|[a-z]|iv|v|vi|vii|viii|ix|x|[i]{1,3})\b', query, re.IGNORECASE)
+    if match:
+        return match.group(1).lower()
+    return None
+
+
+def rerank_page_chunks(query: str, candidate_results: list[dict], page_hint: int | None, exercise_hint: str | None) -> list[dict]:
+    """
+    Reranks candidate chunks by prioritizing target physical_page and exercise title matching.
+    """
+    for res in candidate_results:
+        meta = res.get("metadata") or {}
+        text = res.get("text") or ""
+        score = res.get("rrf_score", 0.0)
+
+        # 1. Page exact match boost
+        phys_page = meta.get("physical_page")
+        pdf_num = meta.get("pdf_page_number")
+        if page_hint is not None:
+            if phys_page == page_hint or pdf_num == page_hint:
+                score += 5.0
+            elif phys_page in [page_hint - 1, page_hint + 1]:
+                score += 2.0
+
+        # 2. Exercise exact match boost
+        if exercise_hint:
+            patterns = [
+                rf'\bbài\s*(?:tập\s*)?{re.escape(exercise_hint)}\b',
+                rf'\b{re.escape(exercise_hint)}[\.\:\)]',
+                rf'\b{re.escape(exercise_hint)}\b'
+            ]
+            for idx, pat in enumerate(patterns):
+                if re.search(pat, text, re.IGNORECASE):
+                    score += 10.0 / (idx + 1)
+                    break
+
+        res["rerank_score"] = score
+
+    candidate_results.sort(key=lambda x: x.get("rerank_score", 0.0), reverse=True)
+    return candidate_results
+
 
 def tokenize_vietnamese(text: str, include_bigrams: bool = False) -> list[str]:
     """
@@ -249,6 +299,10 @@ def book_knowledge_search(
             "metadata": meta
         })
         
+    exercise_hint = extract_exercise_hint(query)
+    if page_hint or exercise_hint:
+        final_results = rerank_page_chunks(query, final_results, page_hint, exercise_hint)
+
     return final_results
 
 
@@ -267,14 +321,46 @@ def parse_to_epoch(date_input: str) -> float:
             return 0.0
 
 
+def standardize_string_list(input_val: Optional[Union[list[str], str]]) -> list[str]:
+    import json
+    if not input_val:
+        return []
+    if isinstance(input_val, str):
+        s = input_val.strip()
+        if not s:
+            return []
+        if s.startswith("[") and s.endswith("]"):
+            try:
+                parsed = json.loads(s)
+                if isinstance(parsed, list):
+                    res = []
+                    for item in parsed:
+                        res.extend(standardize_string_list(item))
+                    return res
+            except Exception:
+                pass
+        if "," in s:
+            return [x.strip("'\" ") for x in s.split(",") if x.strip("'\" ")]
+        return [s.strip("'\" ")]
+    elif isinstance(input_val, list):
+        res = []
+        for item in input_val:
+            if isinstance(item, str):
+                res.extend(standardize_string_list(item))
+            elif item is not None:
+                res.append(str(item))
+        return res
+    return []
+
+
 def multi_domain_retrieval(
     query: str,
-    tag_name_uuids: list[str],
+    tag_name_uuids: Optional[Union[list[str], str]] = None,
     doc_type: str = "doc",
     from_date: str = None,
     to_date: str = None,
     top_k: int = 5,
-    org_ids: list[str] = None
+    org_ids: Optional[Union[list[str], str]] = None
 ) -> list[dict]:
     """
     Performs retrieval across multiple tag/domain collections with type filtering ("doc" vs "qa")
@@ -283,6 +369,9 @@ def multi_domain_retrieval(
     """
     from src import config
     
+    clean_tag_uuids = standardize_string_list(tag_name_uuids)
+    clean_org_ids = standardize_string_list(org_ids)
+
     # Extract page and volume hints from query
     page_hint, volume_hint = extract_hints_from_query(query)
     
@@ -300,48 +389,50 @@ def multi_domain_retrieval(
         client = get_vector_db_client()
         existing_cols = [c.name for c in client.list_collections()]
         
-    for tag_uuid in tag_name_uuids:
-        tag_clean = tag_uuid.strip().lower()
-        if not tag_clean:
-            continue
-        
-        col_name = f"{tag_clean}_{doc_type}"
-        curriculum_col = f"{config.COLLECTION_NAME}_{tag_clean}"
-        target_cols_to_search = []
-        
-        if col_name in existing_cols:
-            target_cols_to_search.append((col_name, tag_clean))
-        if curriculum_col in existing_cols and (curriculum_col, tag_clean) not in target_cols_to_search:
-            target_cols_to_search.append((curriculum_col, tag_clean))
+    target_cols_to_search = []
+    if clean_tag_uuids:
+        for tag in clean_tag_uuids:
+            tag_clean = tag.strip().lower()
+            if not tag_clean:
+                continue
+            col_name = f"{tag_clean}_{doc_type}"
+            curriculum_col = f"{config.COLLECTION_NAME}_{tag_clean}"
             
-        if not target_cols_to_search:
-            # Fallback: search all collections matching doc_type, tag_clean, or default curriculum
+            if col_name in existing_cols:
+                target_cols_to_search.append((col_name, tag_clean))
+            if curriculum_col in existing_cols and (curriculum_col, tag_clean) not in target_cols_to_search:
+                target_cols_to_search.append((curriculum_col, tag_clean))
+                
             for ext_c in existing_cols:
-                if (
-                    ext_c.endswith(f"_{doc_type}")
-                    or ext_c.endswith(f"_{tag_clean}")
-                    or ext_c == tag_clean
-                    or ext_c == config.COLLECTION_NAME
-                ):
+                if (ext_c == tag_clean or ext_c.endswith(f"_{tag_clean}")) and (ext_c, tag_clean) not in target_cols_to_search:
                     target_cols_to_search.append((ext_c, tag_clean))
-                    
-        if not target_cols_to_search:
-            print(f"[Warning] No target collections found for tag '{tag_clean}'. Skipping.")
-            continue
-            
-        for c_name, meta_tag_filter in target_cols_to_search:
-            from src.vector_store.client import get_vector_store
-            vector_store = get_vector_store(field=tag_clean, collection_name_override=c_name)
-            
-            # Build metadata filter
-            filters = []
-            if meta_tag_filter:
-                filters.append({"$or": [{"file_id": meta_tag_filter}, {"tag_name_uuid": meta_tag_filter}]})
-            if org_ids:
-                if len(org_ids) == 1:
-                    filters.append({"org_id": org_ids[0]})
-                else:
-                    filters.append({"org_id": {"$in": org_ids}})
+
+    if not target_cols_to_search:
+        # Fallback: search all existing collections if clean_tag_uuids is empty or no match
+        for ext_c in existing_cols:
+            target_cols_to_search.append((ext_c, ext_c))
+
+    # Deduplicate target collections
+    unique_target_cols = []
+    seen_cols = set()
+    for c_name, meta_filter in target_cols_to_search:
+        if c_name not in seen_cols:
+            seen_cols.add(c_name)
+            unique_target_cols.append((c_name, meta_filter))
+
+    for c_name, meta_tag_filter in unique_target_cols:
+        from src.vector_store.client import get_vector_store
+        vector_store = get_vector_store(field=meta_tag_filter, collection_name_override=c_name)
+        
+        # Build metadata filter
+        filters = []
+        if clean_tag_uuids and meta_tag_filter in clean_tag_uuids:
+            filters.append({"$or": [{"file_id": meta_tag_filter}, {"tag_name_uuid": meta_tag_filter}]})
+        if clean_org_ids:
+            if len(clean_org_ids) == 1:
+                filters.append({"org_id": clean_org_ids[0]})
+            else:
+                filters.append({"org_id": {"$in": clean_org_ids}})
                 
             if volume_hint:
                 filters.append({"volume": str(volume_hint)})
@@ -481,8 +572,13 @@ def multi_domain_retrieval(
                     "rrf_score": rrf_scores[doc_id]
                 })
             
-    # Sort candidate results by RRF score descending
-    all_candidate_results.sort(key=lambda x: x.get("rrf_score", 0.0), reverse=True)
+    # Page and Exercise Reranking
+    exercise_hint = extract_exercise_hint(query)
+    if page_hint or exercise_hint:
+        all_candidate_results = rerank_page_chunks(query, all_candidate_results, page_hint, exercise_hint)
+    else:
+        all_candidate_results.sort(key=lambda x: x.get("rrf_score", 0.0), reverse=True)
+
     return all_candidate_results[:top_k]
 
 
