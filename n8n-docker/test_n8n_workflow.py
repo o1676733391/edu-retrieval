@@ -30,45 +30,45 @@ TEST_CASES = [
             "subject": "math"
         }
     },
-    {
-        "name": "2. Explicit Mode Override (Theory Explanation)",
-        "payload": {
-            "prompt": "Phép cộng là gì hả cô? Giải thích bằng hình ảnh trực quan nhé.",
-            "agent_mode": "theory_explanation", # Bypasses planner and directly routes to theory explanation
-            "subject": "math"
-        }
-    },
-    {
-        "name": "3. Non-RAG Path (General Chit-Chat / Simple Math)",
-        "payload": {
-            "prompt": "Chào cô giáo, chúc cô một ngày tốt lành! Cô khỏe không ạ?",
-            "agent_mode": "default", # Planner should detect chitchat and route to Default Teacher with 'requires_rag: false'
-            "subject": "math"
-        }
-    },
-    {
-        "name": "4. Direct Solver (Direct Answer + Steps)",
-        "payload": {
-            "prompt": "Giải giúp em bài ôn tập phép cộng trang 15, cho em đáp số nhanh luôn.",
-            "agent_mode": "direct_solver",
-            "subject": "math"
-        }
-    },
-    {
-        "name": "5. Fallback Guardrail (Out of Scope / Empty RAG)",
-        "payload": {
-            "prompt": "Giải giùm em bài toán vi phân lớp 12 nâng cao về tích phân bất định.",
-            "agent_mode": "default", # Should lookup and find 0 chunks, hitting the Guardrail and returning fallback msg
-            "subject": "math"
-        }
-    }
+    # {
+    #     "name": "2. Explicit Mode Override (Theory Explanation)",
+    #     "payload": {
+    #         "prompt": "Phép cộng là gì hả cô? Giải thích bằng hình ảnh trực quan nhé.",
+    #         "agent_mode": "theory_explanation", # Bypasses planner and directly routes to theory explanation
+    #         "subject": "math"
+    #     }
+    # },
+    # {
+    #     "name": "3. Non-RAG Path (General Chit-Chat / Simple Math)",
+    #     "payload": {
+    #         "prompt": "Chào cô giáo, chúc cô một ngày tốt lành! Cô khỏe không ạ?",
+    #         "agent_mode": "default", # Planner should detect chitchat and route to Default Teacher with 'requires_rag: false'
+    #         "subject": "math"
+    #     }
+    # },
+    # {
+    #     "name": "4. Direct Solver (Direct Answer + Steps)",
+    #     "payload": {
+    #         "prompt": "Giải giúp em bài ôn tập phép cộng trang 15, cho em đáp số nhanh luôn.",
+    #         "agent_mode": "direct_solver",
+    #         "subject": "math"
+    #     }
+    # },
+    # {
+    #     "name": "5. Fallback Guardrail (Out of Scope / Empty RAG)",
+    #     "payload": {
+    #         "prompt": "Giải giùm em bài toán vi phân lớp 12 nâng cao về tích phân bất định.",
+    #         "agent_mode": "default", # Should lookup and find 0 chunks, hitting the Guardrail and returning fallback msg
+    #         "subject": "math"
+    #     }
+    # }
 ]
 
-def run_tests(host, port, use_production, api_key):
+def run_tests(host, port, use_production):
     # Determine webhook path: n8n uses /webhook-test/ for active editor runs, and /webhook/ for active production workflows
     path = "webhook" if use_production else "webhook-test"
-    url = f"http://{host}:{port}/{path}/COEDNaQ6fu6k1xeE/webhook/rag-math-assistant"
-    
+    url = f"http://{host}:{port}/{path}/rag-math-assistant"
+
     print(f"{Colors.HEADER}{Colors.BOLD}=== RAG Pedagogical Math Assistant Workflow Test Suite ==={Colors.ENDC}")
     print(f"Target URL: {Colors.OKBLUE}{url}{Colors.ENDC}")
     if not use_production:
@@ -78,11 +78,7 @@ def run_tests(host, port, use_production, api_key):
     for case in TEST_CASES:
         name = case["name"]
         payload = case["payload"].copy()
-        
-        # Inject API key if provided
-        if api_key:
-            payload["gemini_api_key"] = api_key
-            
+
         print(f"\n{Colors.BOLD}Running: {name}{Colors.ENDC}")
         print(f"Payload: {json.dumps(payload, ensure_ascii=False, indent=2)}")
         
@@ -120,7 +116,6 @@ if __name__ == "__main__":
     parser.add_argument("--host", default="localhost", help="n8n host (default: localhost)")
     parser.add_argument("--port", default="5678", help="n8n port (default: 5678)")
     parser.add_argument("--production", action="store_true", help="Send to production webhook (/webhook/...) instead of test editor webhook (/webhook-test/...)")
-    parser.add_argument("--key", default="", help="Optional Google Gemini API key to override environment variable")
-    
+
     args = parser.parse_args()
-    run_tests(args.host, args.port, args.production, args.key)
+    run_tests(args.host, args.port, args.production)

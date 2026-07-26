@@ -15,6 +15,9 @@ DB_DIR = DATA_DIR / "chroma_db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_DIR.mkdir(parents=True, exist_ok=True)
 
+# Vector DB backend selection (chromadb or qdrant)
+VECTOR_DB_BACKEND = os.getenv("VECTOR_DB_BACKEND", "chromadb").lower()
+
 # ChromaDB Remote server configs
 CHROMA_HOST = os.getenv("CHROMA_HOST", "")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
