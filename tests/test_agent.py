@@ -510,6 +510,69 @@ class TestPromptRegistry(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "success")
 
+    @unittest.mock.patch('src.vector_store.client.get_vector_store')
+    def test_get_document_outline(self, mock_get_store):
+        from src.vector_store.search import get_document_outline
+        
+        # Setup mock vector store
+        mock_store = unittest.mock.MagicMock()
+        mock_get_store.return_value = mock_store
+        
+        # Mock get_all to return document chunks with lesson metadata
+        mock_store.get_all.return_value = {
+            "metadatas": [
+                {
+                    "file_id": "math3_t1",
+                    "file_name": "Toan3_Tap1.pdf",
+                    "lesson_name": "Bài 1: Ôn tập các số đến 1000",
+                    "physical_page": 5,
+                    "pdf_page_index": 4,
+                    "volume": "1"
+                },
+                {
+                    "file_id": "math3_t1",
+                    "file_name": "Toan3_Tap1.pdf",
+                    "lesson_name": "Bài 1: Ôn tập các số đến 1000",
+                    "physical_page": 6,
+                    "pdf_page_index": 5,
+                    "volume": "1"
+                },
+                {
+                    "file_id": "math3_t1",
+                    "file_name": "Toan3_Tap1.pdf",
+                    "lesson_name": "Bài 2: Cộng trừ trong phạm vi 1000",
+                    "physical_page": 10,
+                    "pdf_page_index": 9,
+                    "volume": "1"
+                },
+                {
+                    "file_id": "science3",
+                    "file_name": "Science3.pdf",
+                    "lesson_name": "Lesson 1: Plants and Animals",
+                    "physical_page": 12,
+                    "pdf_page_index": 11,
+                    "volume": "1"
+                }
+            ]
+        }
+        
+        # Test outline grouping and sorting
+        outline = get_document_outline("math")
+        self.assertEqual(len(outline), 2)  # Two files: Toan3_Tap1.pdf and Science3.pdf
+        
+        # Verify Toan3_Tap1.pdf structure
+        math_lessons = outline["Toan3_Tap1.pdf"]
+        self.assertEqual(len(math_lessons), 2)  # Two unique lessons
+        self.assertEqual(math_lessons[0]["lesson_name"], "Bài 1: Ôn tập các số đến 1000")
+        self.assertEqual(math_lessons[0]["physical_page"], 5)  # First occurrence page
+        self.assertEqual(math_lessons[1]["lesson_name"], "Bài 2: Cộng trừ trong phạm vi 1000")
+        self.assertEqual(math_lessons[1]["physical_page"], 10)
+        
+        # Verify Science3.pdf structure
+        science_lessons = outline["Science3.pdf"]
+        self.assertEqual(len(science_lessons), 1)
+        self.assertEqual(science_lessons[0]["lesson_name"], "Lesson 1: Plants and Animals")
+
 if __name__ == "__main__":
     unittest.main()
 

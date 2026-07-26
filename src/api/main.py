@@ -689,3 +689,21 @@ def activate_prompt_endpoint(req: ActivatePromptRequest):
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/outline")
+def get_outline_endpoint(field: str = "math"):
+    """
+    Returns the table of contents/outline for all documents indexed in the given field,
+    extracted dynamically from chunk metadata.
+    """
+    try:
+        from src.vector_store.search import get_document_outline
+        outline = get_document_outline(field)
+        return {
+            "field": field,
+            "outline": outline
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
