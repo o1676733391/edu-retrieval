@@ -469,7 +469,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Tabs Setup ---
-tab_chatbot, tab_search, tab_upload, tab_api_retrieval, tab_preview, tab_health, tab_prompt_reg, tab_live_test = st.tabs([
+tab_chatbot, tab_search, tab_upload, tab_api_retrieval, tab_preview, tab_health, tab_prompt_reg, tab_live_test, tab_mentor_test = st.tabs([
     "💬 Trợ lý AI Chatbot",
     "🔍 Tra cứu RAG & Multi-Domain",
     "📤 Nạp tài liệu & OCR (Upload)",
@@ -477,7 +477,8 @@ tab_chatbot, tab_search, tab_upload, tab_api_retrieval, tab_preview, tab_health,
     "🔍 Xem trước Vector DB (Preview)",
     "🏥 Trạng thái Hệ thống (Health)",
     "⚙️ Quản lý Prompts (Registry)",
-    "🧪 Live Testing (n8n Webhook)"
+    "🧪 Live Testing (n8n Webhook)",
+    "📝 Thiết kế đề thi (Mentor)"
 ])
 
 # =====================================================================
@@ -1560,3 +1561,140 @@ with tab_live_test:
                         st.text_area("Chi tiết lỗi raw", value=res.text, height=200)
                 except Exception as e:
                     st.error(f"❌ Lỗi kết nối tới n8n Webhook: {e}")
+
+
+# =====================================================================
+# TAB 9: MENTOR/INSTRUCTOR TEST GENERATOR
+# =====================================================================
+with tab_mentor_test:
+    st.markdown("### Thiet ke de thi (Mentor/Instructor Test Generator)")
+    st.markdown("Nhap cac tieu chi yeu cau va barem diem de sinh de thi hoan chinh dinh dang Markdown.")
+
+    col_mt_1, col_mt_2 = st.columns(2)
+    with col_mt_1:
+        mt_subject = st.selectbox(
+            "Mon hoc",
+            options=["Toan hoc", "Khoa hoc tu nhien", "Ngu van", "Lich su va Dia ly", "Tieng Anh"],
+            index=0,
+            key="mt_subject"
+        )
+        mt_grade = st.selectbox(
+            "Khoi lop",
+            options=["Lop 1", "Lop 2", "Lop 3", "Lop 4", "Lop 5"],
+            index=2,
+            key="mt_grade"
+        )
+        mt_topic = st.text_input(
+            "Chu de thi",
+            value="Phep nhan va phep chia trong pham vi 1000",
+            key="mt_topic"
+        )
+        mt_knowledge = st.text_area(
+            "Kien thuc can kiem tra",
+            value="Bang nhan 6, bang chia 6, tinh gia tri bieu thuc va toan co loi van giaai bang hai phep tinh",
+            height=100,
+            key="mt_knowledge"
+        )
+    with col_mt_2:
+        mt_difficulty = st.selectbox(
+            "Muc do kho",
+            options=["De", "Trung binh", "Kho", "Phan hoa"],
+            index=1,
+            key="mt_difficulty"
+        )
+        mt_time = st.selectbox(
+            "Thoi gian lam bai",
+            options=["15 phut", "35 phut", "40 phut", "45 phut", "60 phut", "90 phut"],
+            index=2,
+            key="mt_time"
+        )
+        mt_conv_id = st.text_input(
+            "Conversation ID",
+            value="mentor_st_conv_default",
+            key="mt_conv_id"
+        )
+        mt_webhook_url = st.text_input(
+            "n8n Mentor Webhook URL",
+            value="http://localhost:5678/webhook/MENTOR_TEST_GENERATOR_WF/webhook/mentor-test-generator",
+            key="mt_webhook_url"
+        )
+
+    st.markdown("#### Cau truc cau hoi va Barem diem")
+    col_mt_score1, col_mt_score2 = st.columns(2)
+    with col_mt_score1:
+        mt_mcq_count = st.number_input("So cau trac nghiem", min_value=0, max_value=50, value=5, step=1, key="mt_mcq_count")
+        mt_mcq_score = st.number_input("Tong diem trac nghiem", min_value=0.0, max_value=10.0, value=5.0, step=0.5, key="mt_mcq_score")
+    with col_mt_score2:
+        mt_essay_count = st.number_input("So cau tu luan", min_value=0, max_value=50, value=2, step=1, key="mt_essay_count")
+        mt_essay_score = st.number_input("Tong diem tu luan", min_value=0.0, max_value=10.0, value=5.0, step=0.5, key="mt_essay_score")
+
+    mt_additional = st.text_area(
+        "Yeu cau bo sung",
+        value="Dat cau hoi thuc te sinh dong, phan tu luan co mot cau toan do ve so met vai hoac lit dau.",
+        height=80,
+        key="mt_additional"
+    )
+
+    if st.button("Thuc thi sinh de thi", type="primary", use_container_width=True, key="btn_run_mt"):
+        if not mt_topic.strip():
+            st.error("Vui long nhap chu de thi.")
+        elif mt_mcq_score + mt_essay_score != 10.0:
+            st.warning("Canh bao: Tong diem trac nghiem va tu luan nen bang 10.0 (Hien tai la: " + str(mt_mcq_score + mt_essay_score) + ")")
+            
+        with st.spinner("Dang gui yeu cau thiet ke de thi toi n8n..."):
+            start_t = time.time()
+            try:
+                payload = {
+                    "subject": mt_subject,
+                    "grade": mt_grade,
+                    "topic": mt_topic,
+                    "knowledge_tested": mt_knowledge,
+                    "difficulty": mt_difficulty,
+                    "time_limit": mt_time,
+                    "mcq_count": mt_mcq_count,
+                    "essay_count": mt_essay_count,
+                    "mcq_score_total": mt_mcq_score,
+                    "essay_score_total": mt_essay_score,
+                    "additional_instructions": mt_additional,
+                    "conversation_id": mt_conv_id
+                }
+                
+                headers = {
+                    "Content-Type": "application/json"
+                }
+                res = requests.post(mt_webhook_url, json=payload, headers=headers, timeout=120)
+                elapsed = time.time() - start_t
+                
+                if res.status_code == 200:
+                    try:
+                        res_data = res.json()
+                        output_text = res_data.get("output", "")
+                        conv_returned = res_data.get("conversation_id", "")
+                        
+                        st.success("Hoan thanh trong " + f"{elapsed:.2f}" + " giay!")
+                        if conv_returned:
+                            st.info("Conversation ID phan hoi: " + conv_returned)
+                            
+                        st.markdown("#### De thi thiet ke (Markdown):")
+                        st.markdown('<div class="custom-card" style="background-color: #f8fafc; border-left: 5px solid #64748b;">', unsafe_allow_html=True)
+                        st.markdown(output_text)
+                        st.markdown('</div>', unsafe_allow_html=True)
+                        
+                        st.download_button(
+                            label="Tai de thi xuong (Markdown)",
+                            data=output_text,
+                            file_name="de_thi_" + mt_subject.replace(" ", "_").lower() + ".md",
+                            mime="text/markdown",
+                            key="btn_download_mt"
+                        )
+                        
+                        with st.expander("Chi tiet phan hoi raw JSON"):
+                            st.json(res_data)
+                    except Exception as e:
+                        st.warning("Tra ve 200 OK nhung khong the giai ma JSON: " + str(e))
+                        st.text_area("Raw Response Content", value=res.text, height=200)
+                else:
+                    st.error("Loi tu n8n Webhook (Status Code: " + str(res.status_code) + ")")
+                    st.text_area("Chi tiet loi raw", value=res.text, height=200)
+            except Exception as e:
+                st.error("Loi ket noi toi n8n Webhook: " + str(e))

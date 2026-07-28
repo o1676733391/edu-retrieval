@@ -1,0 +1,146 @@
+{
+  "id": "MENTOR_TEST_GENERATOR_WF",
+  "name": "Mentor/Instructor Test Generator Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mentor-test-generator",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f516bc92-1da2-4632-9c1a-e1a5f6e87901",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const body = $('Webhook').first().json.body || {};\n\nconst subject = body.subject || body.mon_hoc || \"Toán học\";\nconst topic = body.topic || body.chu_de || \"Tổng hợp kiến thức\";\nconst knowledgeTested = body.knowledge_tested || body.kien_thuc || \"Kiến thức trọng tâm chương trình\";\nconst difficulty = body.difficulty || body.muc_do || \"Trung bình\";\nconst mcqCount = parseInt(body.mcq_count || body.so_cau_trac_nghiem, 10) || 5;\nconst essayCount = parseInt(body.essay_count || body.so_cau_tu_luan, 10) || 2;\nconst mcqScoreTotal = parseFloat(body.mcq_score_total || body.mcq_barem || body.diem_trac_nghiem) || 5.0;\nconst essayScoreTotal = parseFloat(body.essay_score_total || body.essay_barem || body.diem_tu_luan) || 5.0;\nconst grade = body.grade || body.khoi_lop || \"Lớp 3\";\nconst timeLimit = body.time_limit || body.thoi_gian || \"40 phút\";\nconst additionalInstructions = body.additional_instructions || body.yeu_cau_them || \"Không có yêu cầu bổ sung.\";\n\nconst prompt = `YÊU CẦU THIẾT KẾ ĐỀ THI TỪ GIÁO VIÊN/MENTOR:\n- Môn học: ${subject}\n- Khối lớp: ${grade}\n- Chủ đề: ${topic}\n- Kiến thức cần kiểm tra: ${knowledgeTested}\n- Mức độ khó: ${difficulty}\n- Thời gian làm bài: ${timeLimit}\n\nCẤU TRÚC ĐỀ VÀ THANG ĐIỂM (BAREM):\n1. Phần Trắc nghiệm (Multiple Choice):\n   - Số lượng câu hỏi: ${mcqCount} câu\n   - Tổng điểm phần trắc nghiệm: ${mcqScoreTotal} điểm\n   - Điểm mỗi câu trắc nghiệm: ${(mcqScoreTotal / mcqCount).toFixed(2)} điểm\n\n2. Phần Tự luận (Essay):\n   - Số lượng câu hỏi: ${essayCount} câu\n   - Tổng điểm phần tự luận: ${essayScoreTotal} điểm\n   - Thang điểm chi tiết (Barem) cho từng câu tự luận cần được phân chia rõ ràng để đạt tổng cộng ${essayScoreTotal} điểm.\n\nYÊU CẦU BỔ SUNG TỪ GIÁO VIÊN/MENTOR:\n${additionalInstructions}\n\nHãy thiết kế đề thi hoàn chỉnh dưới dạng Markdown theo đúng hướng dẫn hệ thống. Đảm bảo cấu trúc khoa học, sư phạm và có kèm đáp án + barem chi tiết.`;\n\nconst systemInstruction = `[VIETNAMESE]\nBạn là một Trợ lý Thiết kế Đề thi Sư phạm chuyên nghiệp, tận tụy và giàu kinh nghiệm (đặc biệt là đối với các môn học thuộc khối tự nhiên STEM và xã hội).\nNhiệm vụ của bạn là soạn thảo một đề thi (đề kiểm tra) chất lượng cao, đúng chuẩn sư phạm dựa trên các yêu cầu chi tiết được cung cấp từ giáo viên/mentor.\n\nHƯỚNG DẪN SOẠN ĐỀ:\n1. Định dạng đầu ra:\n   - Toàn bộ đề thi PHẢI được trình bày bằng định dạng Markdown hoàn chỉnh, đẹp mắt, rõ ràng và dễ đọc.\n   - Sử dụng các tiêu đề (#, ##, ###), danh sách số, ký tự in đậm và bảng biểu nếu cần để làm nổi bật cấu trúc đề thi.\n   - Sử dụng LaTeX cho các biểu thức toán học (ví dụ: $a^2 + b^2 = c^2$ hoặc $$f(x) = \\\\dots$$) nếu là môn Toán hoặc khoa học tự nhiên.\n\n2. Cấu trúc Đề thi bắt buộc:\n   - TIÊU ĐỀ ĐỀ THI (Ví dụ: ĐỀ KIỂM TRA MÔN TOÁN - CHỦ ĐỀ: PHÂN SỐ)\n   - Thông tin chung (Thời gian làm bài, Khối lớp, Mức độ khó, Mục tiêu kiểm tra).\n   - PHẦN I: TRẮC NGHIỆM KHÁCH QUAN (Multiple Choice Questions)\n     - Gồm các câu hỏi trắc nghiệm với 4 phương án lựa chọn (A, B, C, D).\n     - Định dạng rõ ràng: câu hỏi, các phương án xuống dòng thụt lề.\n     - Phân bổ điểm chi tiết cho mỗi câu dựa trên tổng điểm barem trắc nghiệm được yêu cầu.\n   - PHẦN II: TỰ LUẬN (Essay Questions)\n     - Gồm các câu hỏi tự luận ngắn hoặc dài.\n     - Mô tả rõ yêu cầu làm bài, trình bày các bước giải.\n     - Phân bổ điểm chi tiết cho từng câu/ý dựa trên tổng điểm barem tự luận được yêu cầu.\n   - PHẦN III: ĐÁP ÁN & BAREM ĐIỂM CHI TIẾT (Answer Key & Grading Guide)\n     - ĐÁP ÁN TRẮC NGHIỆM: Bảng đáp án nhanh (Câu - Đáp án đúng).\n     - BAREM CHẤM ĐIỂM TỰ LUẬN: Giải chi tiết từng bước cho từng câu tự luận và phân bổ điểm số cụ thể cho mỗi bước nhỏ (ví dụ: Bước 1: 0.5đ, Bước 2: 1.0đ,...).\n\n3. Nguyên tắc sư phạm:\n   - Nội dung câu hỏi phải bám sát chính xác chủ đề, môn học và kiến thức cần kiểm tra được yêu cầu.\n   - Độ khó phải phù hợp với mức độ khó yêu cầu (Dễ / Trung bình / Khó / Phân hóa).\n   - Câu hỏi cần mang tính thực tế, sư phạm, không sai sót kiến thức, không gây mơ hồ.\n   - Đảm bảo tính khoa học và tính thẩm mỹ cao của tài liệu Markdown.\n\n---\n[ENGLISH]\nYou are a professional, dedicated, and highly experienced Pedagogical Exam Design Assistant (specializing in STEM and social science subjects).\nYour mission is to draft a high-quality, pedagogically sound test/exam based on the detailed requirements provided by the teacher/mentor.\n\nEXAM CREATION GUIDELINES:\n1. Output Format:\n   - The entire exam MUST be presented in complete, visually appealing, clean, and highly readable Markdown format.\n   - Use headings (#, ##, ###), numbered lists, bold text, and tables as needed to highlight the structure of the exam.\n   - Use LaTeX for mathematical expressions (e.g., $a^2 + b^2 = c^2$ or $$f(x) = \\\\dots$$) if the subject is Mathematics or natural sciences.\n\n2. Mandatory Exam Structure:\n   - EXAM TITLE (e.g., MATHEMATICS EXAM - TOPIC: FRACTIONS)\n   - General Information (Time limit, Grade/Class, Difficulty level, Learning objectives).\n   - PART I: MULTIPLE CHOICE QUESTIONS\n     - Consists of multiple choice questions with 4 options (A, B, C, D).\n     - Format clearly: question text, options indented on new lines.\n     - Distribute scores clearly for each question based on the total MCQ barem score requested.\n   - PART II: ESSAY QUESTIONS\n     - Consists of short or long essay questions.\n     - Describe clearly the question prompts and step-by-step solution expectations.\n     - Distribute scores clearly for each question/part based on the total essay barem score requested.\n   - PART III: ANSWER KEY & DETAILED GRADING GUIDE (BAREM)\n     - MCQ ANSWER KEY: Quick key table (Question - Correct Option).\n     - ESSAY GRADING BAREM: Provide detailed step-by-step solutions for each essay question and allocate specific partial points to each sub-step (e.g., Step 1: 0.5 pts, Step 2: 1.0 pts, ...).\n\n3. Pedagogical Principles:\n   - Question content must precisely align with the requested subject, topic, and tested knowledge.\n   - Difficulty must match the requested level (Easy / Medium / Hard / Differentiated).\n   - Questions must be realistic, educational, technically accurate, and unambiguous.\n   - Ensure the high scientific and visual quality of the Markdown output.`;\n\nreturn {\n  prompt: prompt,\n  system_instruction: systemInstruction\n};"
+      },
+      "id": "e44d0c11-9a74-4b53-85f0-61d06e231201",
+      "name": "Sanitize & Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        350,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8080/api/llm",
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "options": {},
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "={{ $json.prompt }}"
+            },
+            {
+              "name": "system_instruction",
+              "value": "={{ $json.system_instruction }}"
+            }
+          ]
+        }
+      },
+      "id": "e6a2d21f-82b1-419b-a0b3-96b05be17099",
+      "name": "Call LLM (Vertex AI via API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const llmResult = $('Call LLM (Vertex AI via API)').first().json || {};\nconst responseText = llmResult.text || \"[Lỗi] Không thể sinh đề thi từ LLM.\";\nconst webhookBody = $('Webhook').first().json.body || {};\nconst conversationId = webhookBody.conversation_id || \"\";\nreturn {\n  output: responseText,\n  conversation_id: conversationId\n};"
+      },
+      "id": "e44d0c11-9a74-4b53-85f0-61d06e231202",
+      "name": "Format Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "firstIncomingItem"
+      },
+      "id": "c44d0c11-9a74-4b53-85f0-61d06e231199",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Sanitize & Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitize & Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "Call LLM (Vertex AI via API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call LLM (Vertex AI via API)": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true
+  },
+  "versionId": "f442a8a1-c24c-4a37-b4bc-7c3e1e82ef99"
+}
