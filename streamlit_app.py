@@ -1564,137 +1564,361 @@ with tab_live_test:
 
 
 # =====================================================================
-# TAB 9: MENTOR/INSTRUCTOR TEST GENERATOR
+# TAB 9: MENTOR TEST GENERATOR & SUBMISSION GRADER STUDIO
 # =====================================================================
 with tab_mentor_test:
-    st.markdown("### Thiet ke de thi (Mentor/Instructor Test Generator)")
-    st.markdown("Nhap cac tieu chi yeu cau va barem diem de sinh de thi hoan chinh dinh dang Markdown.")
+    st.markdown("### 📝 Mentor Studio: Tạo Đề Thi & Chấm Bài Tự Động")
+    st.markdown("Giao diện thử nghiệm thủ công (Manual Testing) dành cho Giáo viên/Mentor: Tạo đề thi + barem JSON và chấm điểm bài làm + phân tích chủ đề yếu.")
 
-    col_mt_1, col_mt_2 = st.columns(2)
-    with col_mt_1:
-        mt_subject = st.selectbox(
-            "Mon hoc",
-            options=["Toan hoc", "Khoa hoc tu nhien", "Ngu van", "Lich su va Dia ly", "Tieng Anh"],
-            index=0,
-            key="mt_subject"
-        )
-        mt_grade = st.selectbox(
-            "Khoi lop",
-            options=["Lop 1", "Lop 2", "Lop 3", "Lop 4", "Lop 5"],
-            index=2,
-            key="mt_grade"
-        )
-        mt_topic = st.text_input(
-            "Chu de thi",
-            value="Phep nhan va phep chia trong pham vi 1000",
-            key="mt_topic"
-        )
-        mt_knowledge = st.text_area(
-            "Kien thuc can kiem tra",
-            value="Bang nhan 6, bang chia 6, tinh gia tri bieu thuc va toan co loi van giaai bang hai phep tinh",
-            height=100,
-            key="mt_knowledge"
-        )
-    with col_mt_2:
-        mt_difficulty = st.selectbox(
-            "Muc do kho",
-            options=["De", "Trung binh", "Kho", "Phan hoa"],
-            index=1,
-            key="mt_difficulty"
-        )
-        mt_time = st.selectbox(
-            "Thoi gian lam bai",
-            options=["15 phut", "35 phut", "40 phut", "45 phut", "60 phut", "90 phut"],
-            index=2,
-            key="mt_time"
-        )
-        mt_conv_id = st.text_input(
-            "Conversation ID",
-            value="mentor_st_conv_default",
-            key="mt_conv_id"
-        )
-        mt_webhook_url = st.text_input(
-            "n8n Mentor Webhook URL",
-            value="http://localhost:5678/webhook/MENTOR_TEST_GENERATOR_WF/webhook/mentor-test-generator",
-            key="mt_webhook_url"
-        )
+    subtab_gen, subtab_grade = st.tabs([
+        "🎯 1. Tạo Đề Thi & Barem Mẫu (Test Generator)",
+        "📊 2. Chấm Bài & Phân Tích Chủ Đề Yếu (Submission Grader)"
+    ])
 
-    st.markdown("#### Cau truc cau hoi va Barem diem")
-    col_mt_score1, col_mt_score2 = st.columns(2)
-    with col_mt_score1:
-        mt_mcq_count = st.number_input("So cau trac nghiem", min_value=0, max_value=50, value=5, step=1, key="mt_mcq_count")
-        mt_mcq_score = st.number_input("Tong diem trac nghiem", min_value=0.0, max_value=10.0, value=5.0, step=0.5, key="mt_mcq_score")
-    with col_mt_score2:
-        mt_essay_count = st.number_input("So cau tu luan", min_value=0, max_value=50, value=2, step=1, key="mt_essay_count")
-        mt_essay_score = st.number_input("Tong diem tu luan", min_value=0.0, max_value=10.0, value=5.0, step=0.5, key="mt_essay_score")
+    # -------------------------------------------------------------
+    # SUB-TAB 1: TEST GENERATOR
+    # -------------------------------------------------------------
+    with subtab_gen:
+        st.markdown("#### 🛠️ Cấu hình tiêu chuẩn thiết kế Đề Thi")
+        
+        col_mt_url, col_mt_mode = st.columns([3, 1])
+        with col_mt_url:
+            mt_gen_webhook = st.text_input(
+                "🔗 Webhook URL (Test Generator)",
+                value="http://localhost:5678/webhook/mentor-test-generator",
+                key="mt_gen_webhook",
+                help="Nếu workflow n8n chưa bật Active, đổi /webhook/ thành /webhook-test/."
+            )
+        with col_mt_mode:
+            mt_gen_env = st.selectbox("Môi trường", ["Production (/webhook/)", "Test (/webhook-test/)"], index=0, key="mt_gen_env")
+            if "Test" in mt_gen_env and "/webhook/" in mt_gen_webhook:
+                mt_gen_webhook = mt_gen_webhook.replace("/webhook/", "/webhook-test/")
 
-    mt_additional = st.text_area(
-        "Yeu cau bo sung",
-        value="Dat cau hoi thuc te sinh dong, phan tu luan co mot cau toan do ve so met vai hoac lit dau.",
-        height=80,
-        key="mt_additional"
-    )
+        col_mt_1, col_mt_2 = st.columns(2)
+        with col_mt_1:
+            mt_subject = st.selectbox("Môn học", ["Toán học", "Khoa học tự nhiên", "Ngữ văn", "Tiếng Anh", "Lịch sử & Địa lý"], index=0, key="mt_subject_v2")
+            mt_grade = st.selectbox("Khối lớp", ["Lớp 1", "Lớp 2", "Lớp 3", "Lớp 4", "Lớp 5"], index=3, key="mt_grade_v2")
+            mt_topic = st.text_input("Chủ đề thi", value="Ôn tập các số đến 100 000, phép cộng, phép trừ và hình học Lớp 4", key="mt_topic_v2")
+            mt_knowledge = st.text_area("Kiến thức trọng tâm", value="Tính giá trị biểu thức, số tròn chục nghìn, đặt tính rồi tính và bài toán đố hình học", height=90, key="mt_knowledge_v2")
+        with col_mt_2:
+            mt_difficulty = st.selectbox("Mức độ khó", ["Dễ", "Trung bình", "Khó", "Phân hóa"], index=1, key="mt_difficulty_v2")
+            mt_time = st.selectbox("Thời gian làm bài", ["15 phút", "35 phút", "40 phút", "45 phút", "60 phút"], index=3, key="mt_time_v2")
+            col_sc1, col_sc2 = st.columns(2)
+            with col_sc1:
+                mt_mcq_count = st.number_input("Số câu Trắc nghiệm", min_value=1, max_value=20, value=6, step=1, key="mt_mcq_count_v2")
+                mt_mcq_score = st.number_input("Điểm Trắc nghiệm", min_value=0.0, max_value=10.0, value=6.0, step=0.5, key="mt_mcq_score_v2")
+            with col_sc2:
+                mt_essay_count = st.number_input("Số câu Tự luận", min_value=0, max_value=10, value=4, step=1, key="mt_essay_count_v2")
+                mt_essay_score = st.number_input("Điểm Tự luận", min_value=0.0, max_value=10.0, value=4.0, step=0.5, key="mt_essay_score_v2")
 
-    if st.button("Thuc thi sinh de thi", type="primary", use_container_width=True, key="btn_run_mt"):
-        if not mt_topic.strip():
-            st.error("Vui long nhap chu de thi.")
-        elif mt_mcq_score + mt_essay_score != 10.0:
-            st.warning("Canh bao: Tong diem trac nghiem va tu luan nen bang 10.0 (Hien tai la: " + str(mt_mcq_score + mt_essay_score) + ")")
-            
-        with st.spinner("Dang gui yeu cau thiet ke de thi toi n8n..."):
-            start_t = time.time()
-            try:
-                payload = {
-                    "subject": mt_subject,
-                    "grade": mt_grade,
-                    "topic": mt_topic,
-                    "knowledge_tested": mt_knowledge,
-                    "difficulty": mt_difficulty,
-                    "time_limit": mt_time,
-                    "mcq_count": mt_mcq_count,
-                    "essay_count": mt_essay_count,
-                    "mcq_score_total": mt_mcq_score,
-                    "essay_score_total": mt_essay_score,
-                    "additional_instructions": mt_additional,
-                    "conversation_id": mt_conv_id
-                }
-                
-                headers = {
-                    "Content-Type": "application/json"
-                }
-                res = requests.post(mt_webhook_url, json=payload, headers=headers, timeout=120)
-                elapsed = time.time() - start_t
-                
-                if res.status_code == 200:
-                    try:
+        mt_additional = st.text_area("Yêu cầu bổ sung", value="Đặt câu hỏi thực tế sinh động phù hợp học sinh Lớp 4.", height=70, key="mt_additional_v2")
+
+        if st.button("🚀 Thực thi Sinh Đề Thi & Barem JSON", type="primary", use_container_width=True, key="btn_run_gen_test"):
+            with st.spinner("Đang gửi yêu cầu thiết kế đề thi tới Test Generator Agent... 💭"):
+                start_t = time.time()
+                try:
+                    payload = {
+                        "action": "generate",
+                        "subject": mt_subject,
+                        "grade": mt_grade,
+                        "topic": mt_topic,
+                        "knowledge_tested": mt_knowledge,
+                        "difficulty": mt_difficulty,
+                        "time_limit": mt_time,
+                        "mcq_count": mt_mcq_count,
+                        "essay_count": mt_essay_count,
+                        "mcq_score_total": mt_mcq_score,
+                        "essay_score_total": mt_essay_score,
+                        "additional_instructions": mt_additional
+                    }
+                    res = requests.post(mt_gen_webhook, json=payload, headers={"Content-Type": "application/json"}, timeout=120)
+                    elapsed = time.time() - start_t
+
+                    if res.status_code == 200:
                         res_data = res.json()
-                        output_text = res_data.get("output", "")
-                        conv_returned = res_data.get("conversation_id", "")
-                        
-                        st.success("Hoan thanh trong " + f"{elapsed:.2f}" + " giay!")
-                        if conv_returned:
-                            st.info("Conversation ID phan hoi: " + conv_returned)
-                            
-                        st.markdown("#### De thi thiet ke (Markdown):")
-                        st.markdown('<div class="custom-card" style="background-color: #f8fafc; border-left: 5px solid #64748b;">', unsafe_allow_html=True)
-                        st.markdown(output_text)
-                        st.markdown('</div>', unsafe_allow_html=True)
-                        
-                        st.download_button(
-                            label="Tai de thi xuong (Markdown)",
-                            data=output_text,
-                            file_name="de_thi_" + mt_subject.replace(" ", "_").lower() + ".md",
-                            mime="text/markdown",
-                            key="btn_download_mt"
-                        )
-                        
-                        with st.expander("Chi tiet phan hoi raw JSON"):
+                        st.session_state["latest_generated_test"] = res_data
+                        st.success(f"✅ Hoàn thành sinh đề thi trong {elapsed:.2f} giây!")
+
+                        de_thi = res_data.get("de_thi", {})
+                        barem = res_data.get("barem_cham_diem", {})
+                        test_id = res_data.get("test_id", "N/A")
+
+                        # Display Summary Metrics
+                        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+                        col_m1.metric("Mã Đề Thi", test_id)
+                        col_m2.metric("Môn / Lớp", f"{de_thi.get('subject', mt_subject)} - {de_thi.get('grade', mt_grade)}")
+                        col_m3.metric("Tổng điểm", f"{de_thi.get('total_score', 10.0)} đ")
+                        col_m4.metric("Thời gian", de_thi.get('time_limit', mt_time))
+
+                        # Tabs for viewing generated output
+                        tab_view_exam, tab_view_barem, tab_view_json = st.tabs(["📄 Nội dung Đề Thi", "🔑 Barem Chấm Điểm Mẫu", "📦 Raw JSON"])
+
+                        with tab_view_exam:
+                            st.markdown(f"### {de_thi.get('title', 'ĐỀ KIỂM TRA')}")
+                            st.markdown(f"**Hướng dẫn:** {de_thi.get('instructions', 'Đọc kỹ đề và làm bài.')}")
+                            for part in de_thi.get("parts", []):
+                                st.markdown(f"#### {part.get('part_name', '')}")
+                                for q in part.get("questions", []):
+                                    st.markdown(f"**Câu {q.get('question_number', '')} ({q.get('score', '')}đ):** {q.get('prompt', '')}")
+                                    options = q.get("options")
+                                    if options and isinstance(options, dict):
+                                        for k, v in options.items():
+                                            st.markdown(f"- **{k}.** {v}")
+                                    st.markdown("---")
+
+                        with tab_view_barem:
+                            st.markdown("#### 1. Đáp án phần Trắc nghiệm")
+                            mcq_ans = barem.get("mcq_answers", [])
+                            if mcq_ans:
+                                st.table([
+                                    {
+                                        "Mã câu": m.get("question_id"),
+                                        "Đáp án đúng": m.get("correct_option"),
+                                        "Điểm": m.get("score"),
+                                        "Giải thích": m.get("explanation")
+                                    } for m in mcq_ans
+                                ])
+
+                            st.markdown("#### 2. Thang điểm chi tiết Phần Tự luận")
+                            for essay_ans in barem.get("essay_answers", []):
+                                with st.expander(f"📌 {essay_ans.get('question_id')} - Điểm tối đa: {essay_ans.get('score')}đ"):
+                                    for s in essay_ans.get("solution_steps", []):
+                                        st.markdown(f"- **Bước {s.get('step')} ({s.get('score')}đ):** {s.get('description')}")
+
+                        with tab_view_json:
                             st.json(res_data)
+
+                    else:
+                        st.error(f"❌ Lỗi HTTP {res.status_code} từ n8n Webhook")
+                        st.text_area("Chi tiết phản hồi lỗi", value=res.text, height=150)
+                except Exception as e:
+                    st.error(f"❌ Lỗi kết nối tới Webhook: {e}")
+
+    # -------------------------------------------------------------
+    # SUB-TAB 2: SUBMISSION GRADER & WEAK TOPICS DIAGNOSTICS
+    # -------------------------------------------------------------
+    with subtab_grade:
+        st.markdown("#### 📊 Chấm điểm bài làm & Phân tích chẩn đoán chủ đề yếu")
+
+        col_gr_url, col_gr_quick = st.columns([3, 2])
+        with col_gr_url:
+            mt_grade_webhook = st.text_input(
+                "🔗 Webhook URL (Submission Grader)",
+                value="http://localhost:5678/webhook/mentor-test-generator",
+                key="mt_grade_webhook"
+            )
+        with col_gr_quick:
+            st.markdown("**Thao tác nhanh:**")
+            if st.button("💡 Nạp Đề Thi, Barem & Bài Làm Mẫu (Lớp 4 - 50% Điểm)", key="btn_load_sample_math4"):
+                # Pre-fill sample payload in session state
+                st.session_state["gr_test_id"] = "TEST_MATH4_SAMPLE_E2E"
+                st.session_state["gr_student_id"] = "Trần Văn C - Lớp 4A"
+                sample_barem = {
+                    "test_id": "TEST_MATH4_SAMPLE_E2E",
+                    "total_score": 10.0,
+                    "mcq_answers": [
+                        {"question_id": "MCQ_1", "correct_option": "B", "score": 1.0, "explanation": "45 000 + 35 000 = 80 000"},
+                        {"question_id": "MCQ_2", "correct_option": "A", "score": 1.0, "explanation": "Số 56 789 nhỏ nhất"},
+                        {"question_id": "MCQ_3", "correct_option": "C", "score": 1.0, "explanation": "120 x 4 = 480"},
+                        {"question_id": "MCQ_4", "correct_option": "D", "score": 1.0, "explanation": "Hình vuông có 4 góc vuông"},
+                        {"question_id": "MCQ_5", "correct_option": "A", "score": 1.0, "explanation": "Chu vi = (25 + 15) x 2 = 80m"},
+                        {"question_id": "MCQ_6", "correct_option": "B", "score": 1.0, "explanation": "Diện tích = 10 x 10 = 100 cm2"}
+                    ],
+                    "essay_answers": [
+                        {
+                            "question_id": "ESSAY_1",
+                            "score": 1.0,
+                            "solution_steps": [
+                                {"step": 1, "description": "Đặt tính đúng và cộng các hàng: 34 567 + 23 412 = 57 979", "score": 1.0}
+                            ]
+                        },
+                        {
+                            "question_id": "ESSAY_2",
+                            "score": 1.0,
+                            "solution_steps": [
+                                {"step": 1, "description": "Tính số kg gạo mỗi bao: 45 : 5 = 9 (kg)", "score": 0.5},
+                                {"step": 2, "description": "Tính số kg gạo 8 bao: 9 x 8 = 72 (kg)", "score": 0.5}
+                            ]
+                        },
+                        {
+                            "question_id": "ESSAY_3",
+                            "score": 1.0,
+                            "solution_steps": [
+                                {"step": 1, "description": "Tính nửa chu vi: 50 : 2 = 25 (m)", "score": 0.5},
+                                {"step": 2, "description": "Tính diện tích: 25 x 10 = 250 (m2)", "score": 0.5}
+                            ]
+                        },
+                        {
+                            "question_id": "ESSAY_4",
+                            "score": 1.0,
+                            "solution_steps": [
+                                {"step": 1, "description": "Sắp xếp theo thứ tự tăng dần: 12 345, 23 456, 34 567, 45 678", "score": 1.0}
+                            ]
+                        }
+                    ]
+                }
+                sample_submission_text = """MÃ ĐỀ THI: TEST_MATH4_SAMPLE_E2E
+HỌC SINH: Trần Văn C - Lớp 4A
+
+PHẦN I: TRẮC NGHIỆM
+Câu 1 (MCQ_1): B
+Câu 2 (MCQ_2): A
+Câu 3 (MCQ_3): C
+Câu 4 (MCQ_4): A
+Câu 5 (MCQ_5): B
+Câu 6 (MCQ_6): C
+
+PHẦN II: TỰ LUẬN
+Câu tự luận 1 (ESSAY_1):
+Lời giải:
+- Bước 1: 34 567 + 23 412 = 57 979
+Đáp số: 57 979
+
+Câu tự luận 2 (ESSAY_2):
+Lời giải:
+- Bước 1: Số kg gạo mỗi bao là: 45 : 5 = 9 (kg)
+- Bước 2: Số kg gạo 8 bao là: 9 x 8 = 72 (kg)
+Đáp số: 72 kg
+
+Câu tự luận 3 (ESSAY_3):
+Lời giải:
+- Bước 1: Thực hiện tính tổng: 150 + 250 = 350 (kg)
+Đáp số: 350 kg
+
+Câu tự luận 4 (ESSAY_4):
+Lời giải:
+- Bước 1: Thực hiện tính tổng: 150 + 250 = 350 (kg)
+Đáp số: 350 kg"""
+                st.session_state["gr_barem_json"] = json.dumps(sample_barem, ensure_ascii=False, indent=2)
+                st.session_state["gr_submission_txt"] = sample_submission_text
+                st.toast("✅ Đã nạp Đề thi & Bài làm mẫu (50% điểm) thành công!")
+
+        # Pull values from session_state if set
+        default_test_id = st.session_state.get("gr_test_id", "TEST_MATH4_001")
+        default_student_id = st.session_state.get("gr_student_id", "Trần Văn C - Lớp 4A")
+        default_barem_str = st.session_state.get("gr_barem_json", "{\n  \"test_id\": \"TEST_MATH4_001\"\n}")
+        default_submission_txt = st.session_state.get("gr_submission_txt", "")
+
+        col_gr1, col_gr2 = st.columns(2)
+        with col_gr1:
+            gr_test_id = st.text_input("Mã Đề Thi (test_id)", value=default_test_id, key="gr_test_id_input")
+            gr_student_id = st.text_input("Tên / Mã Học Sinh", value=default_student_id, key="gr_student_id_input")
+            gr_barem_text = st.text_area("Barem Chấm Điểm (JSON)", value=default_barem_str, height=250, key="gr_barem_text_input")
+        with col_gr2:
+            st.markdown("**Bài Làm Của Học Sinh (.txt hoặc Nhập Văn Bản)**")
+            uploaded_file = st.file_uploader("Tải tệp bài làm (.txt)", type=["txt"], key="gr_file_uploader")
+            if uploaded_file is not None:
+                submission_from_file = uploaded_file.read().decode("utf-8")
+                default_submission_txt = submission_from_file
+            
+            gr_submission_text = st.text_area("Nội dung bài làm của học sinh", value=default_submission_txt, height=270, key="gr_submission_text_input")
+
+        if st.button("📊 Chấm Bài Thi & Phân Tích Lỗi Sai", type="primary", use_container_width=True, key="btn_run_grading"):
+            if not gr_submission_text.strip():
+                st.error("Vui lòng nhập hoặc tải tệp bài làm của học sinh.")
+            else:
+                with st.spinner("Submission Grader Agent đang chấm bài và phân tích chẩn đoán... 💭"):
+                    start_t = time.time()
+                    try:
+                        # Try parsing barem json
+                        try:
+                            barem_obj = json.loads(gr_barem_text)
+                        except Exception:
+                            barem_obj = gr_barem_text
+
+                        grade_payload = {
+                            "action": "grade",
+                            "test_id": gr_test_id,
+                            "student_id": gr_student_id,
+                            "barem": barem_obj,
+                            "student_submission": gr_submission_text
+                        }
+
+                        res = requests.post(mt_grade_webhook, json=grade_payload, headers={"Content-Type": "application/json"}, timeout=120)
+                        elapsed = time.time() - start_t
+
+                        if res.status_code == 200:
+                            res_data = res.json()
+                            st.success(f"✅ Đã chấm bài hoàn tất trong {elapsed:.2f} giây!")
+
+                            grading_res = res_data.get("grading_result", {})
+                            total_score = grading_res.get("total_score", 0)
+                            max_score = grading_res.get("max_score", 10)
+                            percentage = grading_res.get("percentage", 0)
+                            overall_feedback = grading_res.get("overall_feedback", "")
+                            weak_topics = grading_res.get("weak_topics", [])
+
+                            # Top Score Metrics Cards
+                            main_topic = grading_res.get("topic", "Tổng hợp kiến thức")
+                            col_sm1, col_sm2, col_sm3, col_sm4 = st.columns(4)
+                            col_sm1.metric("Chủ Đề Kiểm Tra", main_topic)
+                            col_sm2.metric("Tổng Điểm Đạt Được", f"{total_score} / {max_score}")
+                            col_sm3.metric("Tỷ Lệ Chính Xác", f"{percentage}%")
+                            eval_status = "🟢 Giỏi / Xuất Sắc" if percentage >= 80 else ("🟡 Khá / Trung Bình" if percentage >= 50 else "🔴 Cần Tăng Cường")
+                            col_sm4.metric("Đánh Giá Trung", eval_status)
+
+                            # Overall Feedback Card
+                            st.markdown("#### 💬 Nhận xét Tổng quan của Giáo viên:")
+                            st.markdown(f'<div class="custom-card" style="background-color: #f0f9ff; border-left: 5px solid #0284c7;">'
+                                        f'<strong>{overall_feedback}</strong></div>', unsafe_allow_html=True)
+
+                            # WEAK TOPICS DIAGNOSTICS SECTION
+                            st.markdown("#### ⚠️ CHẨN ĐOÁN CHỦ ĐỀ HỔNG KIẾN THỨC / SAI NHIỀU (WEAK TOPICS)")
+                            if weak_topics:
+                                for idx, topic_item in enumerate(weak_topics, 1):
+                                    t_title = topic_item.get("topic") or topic_item.get("topic_name", "Chủ đề hổng kiến thức")
+                                    sev = topic_item.get("severity", "Trung bình").lower()
+                                    badge_color = "#ef4444" if "cao" in sev else ("#f59e0b" if "trung" in sev else "#3b82f6")
+                                    bg_color = "#fef2f2" if "cao" in sev else ("#fffbeb" if "trung" in sev else "#eff6ff")
+                                    
+                                    st.markdown(
+                                        f'<div class="custom-card" style="background-color: {bg_color}; border-left: 5px solid {badge_color};">'
+                                        f'<h5>{idx}. {t_title} '
+                                        f'<span style="background-color:{badge_color}; color:white; padding:2px 8px; border-radius:10px; font-size:0.8rem;">Mức độ: {topic_item.get("severity", "Trung bình")}</span></h5>'
+                                        f'<p><strong>🔍 Nguyên nhân & Lỗi sai:</strong> {topic_item.get("description", "")}</p>'
+                                        f'<p><strong>💡 Gợi ý khắc phục:</strong> {topic_item.get("recommendation", "")}</p>'
+                                        f'</div>',
+                                        unsafe_allow_html=True
+                                    )
+                            else:
+                                st.info("🎉 Học sinh không có chủ đề hổng kiến thức nghiêm trọng nào!")
+
+                            # Detailed Per-Question Breakdowns
+                            st.markdown("#### 🔍 Chi Tiết Chấm Điểm Từng Câu")
+                            tab_mcq_det, tab_essay_det, tab_raw_grade = st.tabs(["📝 Trắc Nghiệm (MCQ)", "✍️ Tự Luận (Essay)", "📦 Raw JSON Output"])
+
+                            with tab_mcq_det:
+                                mcq_res = grading_res.get("mcq_results", [])
+                                if mcq_res:
+                                    mcq_table_data = []
+                                    for m in mcq_res:
+                                        status_str = "✅ Đúng" if m.get("is_correct") else "❌ Sai"
+                                        mcq_table_data.append({
+                                            "Câu hỏi": m.get("question_id"),
+                                            "Đáp án học sinh": m.get("student_answer"),
+                                            "Đáp án đúng": m.get("correct_answer"),
+                                            "Kết quả": status_str,
+                                            "Điểm đạt": f"{m.get('score_earned')}/{m.get('max_score')}",
+                                            "Nhận xét": m.get("feedback")
+                                        })
+                                    st.table(mcq_table_data)
+
+                            with tab_essay_det:
+                                essay_res = grading_res.get("essay_results", [])
+                                for e in essay_res:
+                                    with st.expander(f"✍️ {e.get('question_id')} - Điểm: {e.get('score_earned')}/{e.get('max_score')}đ"):
+                                        st.markdown(f"**Bài làm học sinh:**\n```text\n{e.get('student_answer')}\n```")
+                                        st.markdown(f"**Nhận xét chung câu này:** {e.get('feedback')}")
+                                        st.markdown("**Đánh giá từng bước:**")
+                                        for stp in e.get("step_evaluations", []):
+                                            st.markdown(f"- **Bước {stp.get('step')} ({stp.get('earned_score')}/{stp.get('max_score')}đ):** {stp.get('comment')} *(Mô tả: {stp.get('description')})*")
+
+                            with tab_raw_grade:
+                                st.json(res_data)
+
+                        else:
+                            st.error(f"❌ Lỗi HTTP {res.status_code} từ n8n Webhook")
+                            st.text_area("Chi tiết phản hồi lỗi raw", value=res.text, height=150)
                     except Exception as e:
-                        st.warning("Tra ve 200 OK nhung khong the giai ma JSON: " + str(e))
-                        st.text_area("Raw Response Content", value=res.text, height=200)
-                else:
-                    st.error("Loi tu n8n Webhook (Status Code: " + str(res.status_code) + ")")
-                    st.text_area("Chi tiet loi raw", value=res.text, height=200)
-            except Exception as e:
-                st.error("Loi ket noi toi n8n Webhook: " + str(e))
+                        st.error(f"❌ Lỗi kết nối tới n8n Webhook: {e}")
+

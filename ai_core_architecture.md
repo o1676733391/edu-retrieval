@@ -136,6 +136,7 @@ The system implements strict separation of concerns to handle visually-intensive
 16. **FastAPI LLM proxy wrapper (`/api/llm`):** Eliminates API key rate limits and OAuth overhead inside n8n by funneling LLM prompts through the container's GCP authenticated environment.
 17. **Centralized Prompt Registry System:** Manages system prompts dynamically in a SQLite database via Streamlit UI with version history and rollback capabilities.
 18. **Secure Webhook Layer:** Enforces Bearer Token/API Key verification and allowlist sanitization on incoming webhook overrides in n8n.
+19. **Mentor/Instructor Test Generator & Automated Grading Workflow (`mentor_test_generator_workflow.json`):** Dual-mode n8n workflow supporting structured JSON exam generation with answer key & rubric (`action: "generate"`), and step-by-step automated student submission evaluation against rubrics with structured JSON grading output (`action: "grade"`).
 
 ---
 
