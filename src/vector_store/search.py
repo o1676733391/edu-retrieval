@@ -285,13 +285,23 @@ def book_knowledge_search(
         if score > 0:
             rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + 1.0 / (60.0 + rank + 1)
             doc_details[doc_id] = (text, meta)
-            
+
+    # Process Page-Hint Matched Documents
+    if page_hint and all_docs and all_docs.get("ids"):
+        for idx, doc_id in enumerate(all_docs["ids"]):
+            if doc_id not in doc_details:
+                text = all_docs["documents"][idx]
+                meta = all_docs["metadatas"][idx]
+                rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + 1.0 / (120.0 + idx + 1)
+                doc_details[doc_id] = (text, meta)
+
     # Sort IDs based on RRF scores descending
     sorted_ids = sorted(rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True)
     
     # Return formatted final results
     final_results = []
-    for doc_id in sorted_ids[:top_k]:
+    effective_top_k = max(top_k, len(doc_details)) if page_hint else top_k
+    for doc_id in sorted_ids[:effective_top_k]:
         text, meta = doc_details[doc_id]
         final_results.append({
             "id": doc_id,
@@ -558,10 +568,20 @@ def multi_domain_retrieval(
                     rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + 1.0 / (60.0 + rank + 1)
                     if doc_id not in doc_details:
                         doc_details[doc_id] = (text, meta, 0.5)
-                        
+
+            # Process Page-Hint Matched Documents (Ensure 100% of target page chunks are included)
+            if page_hint and all_docs and all_docs.get("ids"):
+                for idx, doc_id in enumerate(all_docs["ids"]):
+                    if doc_id not in doc_details:
+                        text = all_docs["documents"][idx]
+                        meta = all_docs["metadatas"][idx]
+                        rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + 1.0 / (120.0 + idx + 1)
+                        doc_details[doc_id] = (text, meta, 0.1)
+
             sorted_ids = sorted(rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True)
             
-            for doc_id in sorted_ids[:top_k]:
+            effective_top_k = max(top_k, len(doc_details)) if page_hint else top_k
+            for doc_id in sorted_ids[:effective_top_k]:
                 text, meta, dist = doc_details[doc_id]
                 all_candidate_results.append({
                     "id": doc_id,
