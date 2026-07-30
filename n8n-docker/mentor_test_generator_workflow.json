@@ -1,0 +1,295 @@
+{
+  "id": "MENTOR_TEST_GENERATOR_WF",
+  "name": "Mentor Test Generator & Submission Grader Workflow (Multi-Agent)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mentor-test-generator",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f516bc92-1da2-4632-9c1a-e1a5f6e87901",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ String($json.body.action || '').toLowerCase() }}",
+              "rightValue": "grade",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "c2",
+              "leftValue": "={{ Boolean($json.body.student_submission || $json.body.bai_lam) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "a1110c11-9a74-4b53-85f0-61d06e231200",
+      "name": "Check Action Mode",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        350,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const body = $('Webhook').first().json.body || {};\n\nconst subject = body.subject || body.mon_hoc || \"Toán học\";\nconst topic = body.topic || body.chu_de || \"Tổng hợp kiến thức\";\nconst knowledgeTested = body.knowledge_tested || body.kien_thuc || \"Kiến thức trọng tâm chương trình\";\nconst difficulty = body.difficulty || body.muc_do || \"Trung bình\";\nconst mcqCount = parseInt(body.mcq_count || body.so_cau_trac_nghiem, 10) || 5;\nconst essayCount = parseInt(body.essay_count || body.so_cau_tu_luan, 10) || 2;\nconst mcqScoreTotal = parseFloat(body.mcq_score_total || body.mcq_barem || body.diem_trac_nghiem) || 5.0;\nconst essayScoreTotal = parseFloat(body.essay_score_total || body.essay_barem || body.diem_tu_luan) || 5.0;\nconst grade = body.grade || body.khoi_lop || \"Lớp 3\";\nconst timeLimit = body.time_limit || body.thoi_gian || \"40 phút\";\nconst additionalInstructions = body.additional_instructions || body.yeu_cau_them || body.user_request || body.prompt || \"Không có yêu cầu bổ sung.\";\n\nconst prompt = `YÊU CẦU THIẾT KẾ ĐỀ THI TỪ GIÁO VIÊN/MENTOR:\n- Môn học: ${subject}\n- Khối lớp: ${grade}\n- Chủ đề: ${topic}\n- Kiến thức cần kiểm tra: ${knowledgeTested}\n- Mức độ khó: ${difficulty}\n- Thời gian làm bài: ${timeLimit}\n\nCẤU TRÚC ĐỀ VÀ THANG ĐIỂM (BAREM):\n1. Phần Trắc nghiệm (Multiple Choice):\n   - Số lượng câu hỏi: ${mcqCount} câu\n   - Tổng điểm phần trắc nghiệm: ${mcqScoreTotal} điểm\n   - Điểm mỗi câu trắc nghiệm: ${(mcqScoreTotal / mcqCount).toFixed(2)} điểm\n\n2. Phần Tự luận (Essay):\n   - Số lượng câu hỏi: ${essayCount} câu\n   - Tổng điểm phần tự luận: ${essayScoreTotal} điểm\n   - Thang điểm chi tiết (Barem) cho từng câu tự luận cần được phân chia rõ ràng để đạt tổng cộng ${essayScoreTotal} điểm.\n\nYÊU CẦU BỔ SUNG TỪ GIÁO VIÊN/MENTOR:\n${additionalInstructions}\n\nHãy khởi tạo mã đề thi (test_id), thiết kế ĐỀ THI (de_thi) và BAREM CHẤM ĐIỂM CHI TIẾT (barem_cham_diem) dưới định dạng JSON chính xác theo đúng hướng dẫn hệ thống.`;\n\nconst systemInstruction = `[SYSTEM INSTRUCTION - TEST GENERATOR AGENT]\nBạn là Trợ lý Thiết kế Đề thi Sư phạm chuyên nghiệp. Nhiệm vụ của bạn là soạn thảo đề thi và barem chấm điểm chi tiết dưới dạng JSON chính xác 100%, KHÔNG chứa văn bản giải thích ngoài JSON.\n\nBẮT BUỘC trả về đúng cấu trúc JSON sau (KHÔNG kèm văn bản ngoài JSON):\n{\n  \"action\": \"generate\",\n  \"test_id\": \"TEST_MATH3_TIMESTAMP_OR_RANDOM\",\n  \"de_thi\": {\n    \"title\": \"Tên đề thi\",\n    \"subject\": \"Tên môn học\",\n    \"grade\": \"Khối lớp\",\n    \"time_limit\": \"Thời gian làm bài\",\n    \"difficulty\": \"Mức độ khó\",\n    \"total_score\": 10.0,\n    \"instructions\": \"Hướng dẫn làm bài\",\n    \"parts\": [\n      {\n        \"part_id\": \"PART_1\",\n        \"part_name\": \"Phần I: Trắc nghiệm khách quan\",\n        \"questions\": [\n          {\n            \"question_id\": \"MCQ_1\",\n            \"question_number\": 1,\n            \"prompt\": \"Nội dung câu hỏi trắc nghiệm...\",\n            \"options\": {\n              \"A\": \"Đáp án A\",\n              \"B\": \"Đáp án B\",\n              \"C\": \"Đáp án C\",\n              \"D\": \"Đáp án D\"\n            },\n            \"score\": 1.0\n          }\n        ]\n      },\n      {\n        \"part_id\": \"PART_2\",\n        \"part_name\": \"Phần II: Tự luận\",\n        \"questions\": [\n          {\n            \"question_id\": \"ESSAY_1\",\n            \"question_number\": 1,\n            \"prompt\": \"Nội dung câu hỏi tự luận...\",\n            \"score\": 2.5\n          }\n        ]\n      }\n    ]\n  },\n  \"barem_cham_diem\": {\n    \"test_id\": \"TEST_MATH3_TIMESTAMP_OR_RANDOM\",\n    \"total_score\": 10.0,\n    \"mcq_answers\": [\n      {\n        \"question_id\": \"MCQ_1\",\n        \"correct_option\": \"A\",\n        \"score\": 1.0,\n        \"explanation\": \"Giải thích tại sao A đúng...\"\n      }\n    ],\n    \"essay_answers\": [\n      {\n        \"question_id\": \"ESSAY_1\",\n        \"score\": 2.5,\n        \"solution_steps\": [\n          {\n            \"step\": 1,\n            \"description\": \"Nội dung bước 1\",\n            \"score\": 1.0\n          },\n          {\n            \"step\": 2,\n            \"description\": \"Nội dung bước 2\",\n            \"score\": 1.5\n          }\n        ]\n      }\n    ]\n  }\n}`;\n\nreturn {\n  action: \"generate\",\n  prompt: prompt,\n  system_instruction: systemInstruction\n};"
+      },
+      "id": "e44d0c11-9a74-4b53-85f0-61d06e231201",
+      "name": "Prepare Prompt - Test Generator Agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8080/api/llm",
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "options": {},
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "={{ $json.prompt }}"
+            },
+            {
+              "name": "system_instruction",
+              "value": "={{ $json.system_instruction }}"
+            }
+          ]
+        }
+      },
+      "id": "e6a2d21f-82b1-419b-a0b3-96b05be17099",
+      "name": "Test Generator Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        850,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const llmResult = $('Test Generator Agent').first().json || {};\nconst rawText = llmResult.text || \"\";\nlet cleanedText = rawText.replace(/```json/gi, \"\").replace(/```/gi, \"\").trim();\nlet outputObj = null;\n\ntry {\n  outputObj = JSON.parse(cleanedText);\n} catch (e) {\n  const jsonMatch = cleanedText.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    try {\n      outputObj = JSON.parse(jsonMatch[0]);\n    } catch (e2) {\n      outputObj = null;\n    }\n  }\n}\n\nif (outputObj && typeof outputObj === \"object\") {\n  outputObj.action = \"generate\";\n  return outputObj;\n} else {\n  return {\n    action: \"generate\",\n    status: \"warning\",\n    message: \"Test Generator Agent output could not be parsed as valid JSON.\",\n    raw_text: rawText\n  };\n}"
+      },
+      "id": "e44d0c11-9a74-4b53-85f0-61d06e231202",
+      "name": "Format Output - Test Generator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const body = $('Webhook').first().json.body || {};\n\nconst testId = body.test_id || body.id_de_thi || \"TEST_UNKNOWN\";\nconst studentId = body.student_id || body.ten_hoc_sinh || \"Học sinh\";\nconst studentSubmission = body.student_submission || body.bai_lam || {};\nconst baremInfo = body.barem || body.barem_cham_diem || body.de_thi || body.de_thi_and_barem || \"Dựa trên đáp án và thang điểm tiêu chuẩn cho đề thi.\";\n\nconst prompt = `YÊU CẦU CHẤM BÀI THI TỪ BAREM & PHÂN TÍCH CHỦ ĐỀ YẾU:\n- Mã đề thi (test_id): ${testId}\n- Mã/Tên học sinh: ${studentId}\n\nTHÔNG TIN BAREM / ĐỀ THI:\n${typeof baremInfo === 'object' ? JSON.stringify(baremInfo, null, 2) : baremInfo}\n\nBÀI LÀM CỦA HỌC SINH:\n${typeof studentSubmission === 'object' ? JSON.stringify(studentSubmission, null, 2) : studentSubmission}\n\nHãy chấm điểm bài làm của học sinh dựa trên Barem điểm được cung cấp. Đánh giá chính xác phần trắc nghiệm và chấm điểm chi tiết từng bước cho phần tự luận. ĐẶC BIỆT: Nêu rõ chủ đề chính của đề thi (topic) và tổng hợp các câu làm sai/bị trừ điểm để phân tích rõ các chủ đề/dạng bài học sinh đang bị yếu (weak_topics). Trả về kết quả chấm điểm dưới định dạng JSON theo đúng hướng dẫn hệ thống.`;\n\nconst systemInstruction = `[SYSTEM INSTRUCTION - SUBMISSION GRADER AGENT]\nBạn là Chuyên gia Chấm điểm & Phân tích Chẩn đoán Sư phạm. Nhiệm vụ của bạn là chấm bài làm của học sinh dựa trên đề thi và barem điểm được cung cấp, xác định rõ chủ đề chính của bài kiểm tra (topic), phân tích các lỗi sai để xác định những chủ đề/dạng bài học sinh đang bị yếu hoặc sai nhiều, sau đó trả về kết quả dưới dạng JSON chính xác 100%.\n\nQuy tắc chấm điểm & Phân tích chẩn đoán:\n1. Xác định chủ đề chính (topic): Trích xuất hoặc tổng hợp tên chủ đề kiến thức tổng quát của bài kiểm tra và đưa vào trường \"topic\" ở cấp cao nhất trong \"grading_result\".\n2. Phần Trắc nghiệm (MCQ): So sánh đáp án học sinh chọn với correct_option trong barem. Nếu đúng nhận full điểm câu đó, sai nhận 0 điểm.\n3. Phần Tự luận (Essay): Đánh giá bài giải của học sinh theo từng bước (solution_steps) trong barem. Mỗi bước làm đúng sẽ nhận số điểm của bước đó (step.score). Cho nhận xét ngắn gọn và sư phạm.\n4. Tính tổng điểm thu được (total_score), tổng điểm tối đa (max_score), và tỷ lệ phần trăm (percentage).\n5. PHÂN TÍCH CHỦ ĐỀ YẾU (weak_topics): Tổng hợp tất cả các câu trắc nghiệm và tự luận học sinh làm sai hoặc bị trừ điểm. Nhóm lại thành danh sách các chủ đề/mảng kiến thức học sinh đang bị yếu, gắn trường \"topic\" (và \"topic_name\"), đánh giá mức độ nghiêm trọng (Cao | Trung bình | Nhẹ), mô tả nguyên nhân lỗi sai và đưa ra lời khuyên khắc phục cụ thể.\n6. Đưa ra nhận xét chung tổng quát (overall_feedback) khích lệ và chỉ ra điểm cần cải thiện.\n\nBẮT BUỘC trả về đúng cấu trúc JSON sau (KHÔNG kèm văn bản ngoài JSON):\n{\n  \"action\": \"grade\",\n  \"test_id\": \"Mã đề thi\",\n  \"student_id\": \"Mã/Tên học sinh\",\n  \"grading_result\": {\n    \"topic\": \"Tên chủ đề chính của đề thi/bài kiểm tra\",\n    \"total_score\": 5.0,\n    \"max_score\": 10.0,\n    \"percentage\": 50.0,\n    \"overall_feedback\": \"Nhận xét tổng quan sư phạm cho học sinh/phụ huynh\",\n    \"weak_topics\": [\n      {\n        \"topic\": \"Tên chủ đề/dạng bài bị yếu (ví dụ: Phép cộng/trừ số có 5 chữ số có nhớ)\",\n        \"topic_name\": \"Tên chủ đề/dạng bài bị yếu\",\n        \"severity\": \"Cao\",\n        \"description\": \"Phân tích cụ thể nguyên nhân hoặc điểm học sinh còn nhầm lẫn\",\n        \"recommendation\": \"Gợi ý cách khắc phục hoặc bài tập luyện tập bổ sung\"\n      }\n    ],\n    \"mcq_results\": [\n      {\n        \"question_id\": \"MCQ_1\",\n        \"student_answer\": \"A\",\n        \"correct_answer\": \"A\",\n        \"is_correct\": true,\n        \"score_earned\": 1.0,\n        \"max_score\": 1.0,\n        \"feedback\": \"Chính xác.\"\n      }\n    ],\n    \"essay_results\": [\n      {\n        \"question_id\": \"ESSAY_1\",\n        \"student_answer\": \"Lời giải của học sinh...\",\n        \"score_earned\": 1.5,\n        \"max_score\": 2.5,\n        \"step_evaluations\": [\n          {\n            \"step\": 1,\n            \"description\": \"Bước 1: Tính...\",\n            \"max_score\": 1.0,\n            \"earned_score\": 1.0,\n            \"comment\": \"Chính xác\"\n          },\n          {\n            \"step\": 2,\n            \"description\": \"Bước 2: Tính...\",\n            \"max_score\": 1.5,\n            \"earned_score\": 0.5,\n            \"comment\": \"Tính toán chưa chính xác ở kết quả cuối\"\n          }\n        ],\n        \"feedback\": \"Học sinh hiểu cách làm nhưng nhầm lẫn kết quả tính toán.\"\n      }\n    ]\n  }\n}`;\n\nreturn {\n  action: \"grade\",\n  prompt: prompt,\n  system_instruction: systemInstruction\n};"
+      },
+      "id": "b2220c11-9a74-4b53-85f0-61d06e231203",
+      "name": "Prepare Prompt - Submission Grader Agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8080/api/llm",
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "options": {},
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "={{ $json.prompt }}"
+            },
+            {
+              "name": "system_instruction",
+              "value": "={{ $json.system_instruction }}"
+            }
+          ]
+        }
+      },
+      "id": "b6a2d21f-82b1-419b-a0b3-96b05be17099",
+      "name": "Submission Grader Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        850,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const llmResult = $('Submission Grader Agent').first().json || {};\nconst rawText = llmResult.text || \"\";\nlet cleanedText = rawText.replace(/```json/gi, \"\").replace(/```/gi, \"\").trim();\nlet outputObj = null;\n\ntry {\n  outputObj = JSON.parse(cleanedText);\n} catch (e) {\n  const jsonMatch = cleanedText.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    try {\n      outputObj = JSON.parse(jsonMatch[0]);\n    } catch (e2) {\n      outputObj = null;\n    }\n  }\n}\n\nif (outputObj && typeof outputObj === \"object\") {\n  outputObj.action = \"grade\";\n  return outputObj;\n} else {\n  return {\n    action: \"grade\",\n    status: \"warning\",\n    message: \"Submission Grader Agent output could not be parsed as valid JSON.\",\n    raw_text: rawText\n  };\n}"
+      },
+      "id": "b44d0c11-9a74-4b53-85f0-61d06e231204",
+      "name": "Format Output - Submission Grader",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "firstIncomingItem"
+      },
+      "id": "c44d0c11-9a74-4b53-85f0-61d06e231199",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1350,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Check Action Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Action Mode": {
+      "main": [
+        [
+          {
+            "node": "Prepare Prompt - Submission Grader Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Prompt - Test Generator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Prompt - Test Generator Agent": {
+      "main": [
+        [
+          {
+            "node": "Test Generator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Generator Agent": {
+      "main": [
+        [
+          {
+            "node": "Format Output - Test Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output - Test Generator": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Prompt - Submission Grader Agent": {
+      "main": [
+        [
+          {
+            "node": "Submission Grader Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Submission Grader Agent": {
+      "main": [
+        [
+          {
+            "node": "Format Output - Submission Grader",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output - Submission Grader": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true
+  },
+  "versionId": "f442a8a1-c24c-4a37-b4bc-7c3e1e82ef99"
+}
