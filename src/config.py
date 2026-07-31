@@ -38,10 +38,11 @@ USE_VERTEXAI = os.getenv("USE_VERTEXAI", "false").lower() == "true"
 GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT", "")
 GOOGLE_CLOUD_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
 
-# Dynamically set GOOGLE_APPLICATION_CREDENTIALS if gcp-key.json exists in data directory
-GCP_KEY_FILE = DATA_DIR / "gcp-key.json"
-if GCP_KEY_FILE.exists():
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(GCP_KEY_FILE)
+# Dynamically set GOOGLE_APPLICATION_CREDENTIALS if not already specified in environment
+if "GOOGLE_APPLICATION_CREDENTIALS" not in os.environ or not os.environ["GOOGLE_APPLICATION_CREDENTIALS"]:
+    GCP_KEY_FILE = DATA_DIR / "gcp-key.json"
+    if GCP_KEY_FILE.exists():
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(GCP_KEY_FILE)
 
 # Default collection name for Vector Database
 COLLECTION_NAME = "toan_3_curriculum"

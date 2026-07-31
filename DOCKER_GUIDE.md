@@ -14,7 +14,7 @@ Tài liệu này hướng dẫn chi tiết cách chạy toàn bộ hệ thống 
     *   Đảm bảo tệp `.env` ở thư mục gốc có các khai báo sau:
         ```env
         USE_VERTEXAI=true
-        GOOGLE_CLOUD_PROJECT=gemini-chatbot-436001
+        GOOGLE_CLOUD_PROJECT=YOUR_GCP_PROJECT_ID
         GOOGLE_CLOUD_LOCATION=asia-southeast1  # Hoặc khu vực của bạn (ví dụ: us-central1)
         ```
 

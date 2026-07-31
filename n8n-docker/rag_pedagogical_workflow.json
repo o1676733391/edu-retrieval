@@ -20,114 +20,6 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "http://host.docker.internal:8080/api/llm",
-        "sendBody": true,
-        "specifyBody": "keypair",
-        "options": {},
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "prompt",
-              "value": "={{ $('Security & Sanitization Gate').first().json.body.prompt_overrides.planner || $('Fetch Active Prompts').first().json.planner || \"B\\u1ea1n l\\u00e0 m\\u1ed9t \\u0110i\\u1ec1u ph\\u1ed1i vi\\u00ean h\\u1ecdc t\\u1eadp AI (Orchestrator Agent). Nhi\\u1ec7m v\\u1ee5 c\\u1ee7a b\\u1ea1n l\\u00e0 ph\\u00e2n t\\u00edch c\\u00e2u h\\u1ecfi c\\u1ee7a h\\u1ecdc sinh/ph\\u1ee5 huynh \\u0111\\u1ec3:\\\\n1. Ch\\u1ecdn ra chuy\\u00ean gia ph\\u00f9 h\\u1ee3p nh\\u1ea5t (selected_agent).\\\\n2. X\\u00e1c \\u0111\\u1ecbnh c\\u00e2u h\\u1ecfi n\\u00e0y c\\u00f3 c\\u1ea7n tra c\\u1ee9u ng\\u1eef c\\u1ea3nh SGK (RAG) hay kh\\u00f4ng (requires_rag).\\\\n\\\\nC\\u00e1c chuy\\u00ean gia s\\u1eb5n c\\u00f3:\\\\n- \\\\\\\"barem_review\\\\\\\": Chuy\\u00ean gia ch\\u1ea5m \\u0111i\\u1ec3m b\\u00e0i l\\u00e0m d\\u1ef1a tr\\u00ean barem \\u0111i\\u1ec3m.\\\\n- \\\\\\\"theory_explanation\\\\\\\": Chuy\\u00ean gia gi\\u1ea3ng gi\\u1ea3i l\\u00fd thuy\\u1ebft kh\\u00e1i ni\\u1ec7m to\\u00e1n h\\u1ecdc l\\u1edbp 3.\\\\n- \\\\\\\"exercise_generator\\\\\\\": Chuy\\u00ean gia t\\u1ea1o b\\u00e0i t\\u1eadp luy\\u1ec7n t\\u1eadp.\\\\n- \\\\\\\"suggestive_tutor\\\\\\\": Gia s\\u01b0 to\\u00e1n g\\u1ee3i m\\u1edf, d\\u1eaft tay h\\u1ecdc sinh.\\\\n- \\\\\\\"direct_solver\\\\\\\": Chuy\\u00ean gia gi\\u1ea3i nhanh v\\u00e0 \\u0111\\u00e1p s\\u1ed1 ngay l\\u1eadp t\\u1ee9c.\\\\n- \\\\\\\"default\\\\\\\": Gi\\u00e1o vi\\u00ean ti\\u1ec3u h\\u1ecdc th\\u00f4ng th\\u01b0\\u1eddng.\\\\n\\\\nQuy t\\u1eafc x\\u00e1c \\u0111\\u1ecbnh requires_rag:\\\\n- true: c\\u00e2u h\\u1ecfi c\\u1ee5 th\\u1ec3 v\\u1ec1 to\\u00e1n l\\u1edbp 3 ho\\u1eb7c b\\u00e0i h\\u1ecdc SGK.\\\\n- false: ch\\u00e0o h\\u1ecfi x\\u00e3 giao, c\\u00e2u h\\u1ecfi ngo\\u00e0i l\\u1ec1.\" }}\\n\\nCâu hỏi của người dùng:\\n{{ $('Security & Sanitization Gate').first().json.body.prompt }}\\n\\nHãy trả về chính xác định dạng JSON sau:\\n{\\n  \\\"selected_agent\\\": \\\"tên_agent\\\",\\n  \\\"predicted_intents\\\": [\\\"intent_1\\\", \\\"intent_2\\\", \\\"intent_3\\\"],\\n  \\\"requires_rag\\\": true | false\\n}"
-            }
-          ]
-        }
-      },
-      "id": "e6a2d21f-82b1-419b-a0b3-96b05be17037",
-      "name": "Planner Agent",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [
-        540,
-        220
-      ]
-    },
-    {
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "const plannerRes = $('Planner Agent').item.json;\n\nlet selected = \"default\";\nlet requiresRag = false;\nlet predictedIntents = [];\n\ntry {\n  const text = plannerRes.text;\n  const cleanText = text.replace(/```json/gi, \"\").replace(/```/gi, \"\").trim();\n  const parsed = JSON.parse(cleanText);\n  selected = parsed.selected_agent || \"default\";\n  requiresRag = (parsed.requires_rag === true || parsed.requires_rag === \"true\");\n  predictedIntents = parsed.predicted_intents || [];\n} catch (e) {\n  selected = \"default\";\n  requiresRag = false;\n  predictedIntents = [];\n}\n\nreturn {\n  selected_agent: selected,\n  requires_rag: requiresRag,\n  predicted_intents: predictedIntents\n};"
-      },
-      "id": "d44d0c11-9a74-4b53-85f0-61d06e23114b",
-      "name": "Parse Planner Decision",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        700,
-        220
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "http://host.docker.internal:8080/api/retrieval",
-        "sendBody": true,
-        "specifyBody": "keypair",
-        "options": {},
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "text",
-              "value": "={{ $('Security & Sanitization Gate').first().json.body.prompt }}"
-            },
-            {
-              "name": "tag_name_uuids",
-              "value": "={{ JSON.stringify($('Security & Sanitization Gate').first().json.body.tag_name_uuid || []) }}"
-            },
-            {
-              "name": "org_ids",
-              "value": "={{ JSON.stringify($('Security & Sanitization Gate').first().json.body.org_id || []) }}"
-            },
-            {
-              "name": "type",
-              "value": "doc"
-            },
-            {
-              "name": "top_k",
-              "value": "3"
-            }
-          ]
-        }
-      },
-      "id": "e7c2a13f-80d1-419b-b0b3-96b05be1703e",
-      "name": "Call Python Retrieval API",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [
-        540,
-        480
-      ]
-    },
-    {
-      "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "const retrievalData = $('Call Python Retrieval API').first().json;\nconst results = (retrievalData.results || []).filter(r => r.distance === undefined || r.distance < 1.6);\n\nconst contextTexts = [];\nconst citations = [];\nlet retrievalFailed = false;\n\nif (results.length === 0) {\n  retrievalFailed = true;\n} else {\n  results.forEach((chunk, index) => {\n    const meta = chunk.metadata || {};\n    const physPage = meta.physical_page;\n    const pdfPage = meta.pdf_page_number || (meta.pdf_page_index !== undefined ? meta.pdf_page_index + 1 : undefined);\n    const pageStr = (physPage !== undefined && physPage !== -1) ? `Trang ${physPage}` : (pdfPage !== undefined ? `Trang PDF ${pdfPage}` : 'Trang chưa rõ');\n    const lessonName = meta.lesson_name || 'Chưa rõ';\n    const fileName = meta.file_name || 'SGK Toán 3';\n    const volume = meta.volume || '1';\n    contextTexts.push(`--- Đoạn ${index + 1}: ${fileName}, ${pageStr} ---\\n${chunk.text}`);\n    citations.push(`- **Tài liệu:** ${fileName} | **Bài học:** ${lessonName} | **Vị trí:** ${pageStr} (Tập ${volume})`);\n  });\n}\n\nreturn {\n  joined_context: contextTexts.join('\\n\\n'),\n  citation_block: citations.join('\\n'),\n  retrieval_failed: retrievalFailed\n};"
-      },
-      "id": "e44d0c11-9a74-4b53-85f0-61d06e23114d",
-      "name": "Process Retrieval Results",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        700,
-        480
-      ]
-    },
-    {
-      "parameters": {
-        "mode": "combine",
-        "combinationMode": "mergeByPosition"
-      },
-      "id": "b44d0c11-9a74-4b53-85f0-61d06e23114b",
-      "name": "Merge Branches",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 2.1,
-      "position": [
-        820,
-        350
-      ]
-    },
-    {
-      "parameters": {
         "mode": "runOnceForEachItem",
         "jsCode": "let joinedContext = \"\";\nlet citationBlock = \"\";\nlet retrievalFailed = false;\n\nconst selectedAgent = $json.selected_agent;\nconst requiresRag = $json.requires_rag;\nlet predictedIntents = [];\ntry {\n  predictedIntents = $json.predicted_intents || $('Parse Planner Decision').first().json.predicted_intents || [];\n} catch (e) {\n  predictedIntents = [];\n}\n\nif (requiresRag) {\n  joinedContext = $json.joined_context || \"\";\n  citationBlock = $json.citation_block || \"\";\n  retrievalFailed = ($json.retrieval_failed === true || $json.retrieval_failed === \"true\");\n}\n\nconst securityNode = $('Security & Sanitization Gate').first().json.body;\nconst userPrompt = securityNode.prompt;\nconst overrides = securityNode.prompt_overrides || {};\n\nlet activePrompts = {};\ntry {\n  activePrompts = $('Fetch Active Prompts').first().json;\n} catch (e) {\n  activePrompts = {};\n}\n\nconst getPrompt = (agentName, defaultVal) => {\n  return overrides[agentName] || activePrompts[agentName] || defaultVal;\n};\n\nlet finalAgent = selectedAgent;\nlet finalRequires = requiresRag;\nif (securityNode.agent_mode && securityNode.agent_mode !== \"default\" && securityNode.agent_mode !== \"\") {\n  finalAgent = securityNode.agent_mode;\n  if (securityNode.agent_mode !== \"default\") {\n    finalRequires = true;\n  }\n}\n\n// NEW RULE: if RAG is required but retrieval failed (no matching documents found in RAG),\n// push to \"no_intent\" to present options to the user.\nif (finalRequires && retrievalFailed) {\n  finalAgent = \"no_intent\";\n}\n\n// Never block/reject using fallback text - allow external LLM intelligence for all modules\nlet ragGuardrailTriggered = false;\n\nlet effectiveCitationBlock = citationBlock;\nif (!citationBlock || citationBlock.trim() === \"\" || retrievalFailed) {\n  effectiveCitationBlock = \"- **Nguồn tham khảo:** Kiến thức mở rộng\";\n}\n\nconst RAG_RULE_PREFIX = \"HƯỚNG DẪN SỬ DỤNG NGỮ CẢNH & KIẾN THỨC MỞ RỘNG:\\n\" +\n  \"- Bạn ĐƯỢC PHÉP truy cập và sử dụng triệt để trí tuệ/kiến thức mở rộng của bản thân để giải đáp câu hỏi, tạo bộ bài tập hoặc giảng giải lý thuyết một cách sư phạm nhất.\\n\" +\n  \"- Nếu Ngữ cảnh SGK có thông tin, hãy ưu tiên tham khảo nội dung và độ khó từ SGK.\\n\" +\n  \"- Nếu Ngữ cảnh SGK không có hoặc không đầy đủ (hoặc retrieval không tìm thấy), hãy sử dụng kiến thức mở rộng chuyên môn để trả lời khéo léo và chính xác.\\n\\n\" +\n  \"Ngữ cảnh tài liệu SGK (nếu có):\\n\" + joinedContext + \"\\n\\n\";\n\n// --- Default Teacher ---\nlet defaultTeacherPrompt = \"\";\nconst baseDefaultTeacher = getPrompt('default_teacher', 'Bạn là một giáo viên tiểu học thân thiện, tận tụy và dịu dàng.');\nif (finalRequires) {\n  defaultTeacherPrompt = baseDefaultTeacher + \"\\n\\n\" + RAG_RULE_PREFIX +\n    \"Câu hỏi của người dùng:\\n\" + userPrompt +\n    \"\\n\\nYêu cầu câu trả lời:\\n1. Trả lời thân thiện, giải thích từng bước logic toán học rõ ràng.\\n2. Trả lời hoàn toàn bằng tiếng Việt.\\n3. Cuối câu trả lời, in rõ phần trích dẫn nguồn theo đúng định dạng sau:\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n} else {\n  defaultTeacherPrompt = baseDefaultTeacher + \" Hãy trò chuyện thân thiện, trả lời tự nhiên hoặc giải thích toán học đơn giản cho câu hỏi của người dùng.\\n\\nCâu hỏi/Lời nhắn của người dùng:\\n\" + userPrompt + \"\\n\\nYêu cầu:\\n1. Trả lời thân thiện, ngọt ngào bằng tiếng Việt.\\n2. Cuối câu trả lời, in trích dẫn:\\n\\n---\\n **Nguồn tham khảo:**\\n- **Nguồn tham khảo:** Kiến thức mở rộng\";\n}\n\n// --- Barem Reviewer ---\nconst baseBarem = getPrompt('barem_review', 'Bạn là một giáo viên tiểu học thân thiện, tận tụy và công tâm. Nhiệm vụ của bạn là chấm điểm và nhận xét bài làm của học sinh dựa trên Barem điểm và đáp án chuẩn được cung cấp.');\nconst baremPrompt = baseBarem + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi/Yêu cầu chấm điểm (chứa Đề bài, Barem & Bài làm của học sinh):\\n\" + userPrompt +\n  \"\\n\\nHãy thực hiện chấm điểm và đưa ra nhận xét sư phạm chi tiết, ấm áp.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n\n// --- Theory Explainer ---\nconst baseTheory = getPrompt('theory_explanation', 'Bạn là một giáo viên tiểu học có tài giảng dạy trực quan, sinh động. Nhiệm vụ của bạn là giải thích các định nghĩa, khái niệm toán học lớp 3 từ sách giáo khoa một cách dễ hiểu nhất.');\nconst theoryPrompt = baseTheory + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi của học sinh/phụ huynh về khái niệm lý thuyết:\\n\" + userPrompt +\n  \"\\n\\nGiải thích trực quan, gần gũi, dùng ví dụ thực tế cho trẻ em 8-9 tuổi.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n\n// --- Exercise Generator ---\nconst baseExercise = getPrompt('exercise_generator', 'Bạn là một chuyên gia biên soạn tài liệu toán tiểu học. Nhiệm vụ của bạn là tạo ra các bài tập tự luyện mới dựa trên ngữ cảnh bài học trong sách giáo khoa.');\nconst exercisePrompt = baseExercise + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Yêu cầu tạo bài tập của người dùng:\\n\" + userPrompt +\n  \"\\n\\nTạo bộ bài tập 3 mức độ (Nhận biết, Vận dụng, Vận dụng cao) phù hợp với học sinh lớp 3. Tham khảo độ khó từ SGK nếu có, hoặc dùng kiến thức mở rộng để soạn bộ bài tập chất lượng.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n\n// --- Suggestive Tutor ---\nconst baseTutor = getPrompt('suggestive_tutor', 'Bạn là một Gia sư Toán Tiểu học có phương pháp dạy học tương tác, gợi mở (Socratic method). TUYỆT ĐỐI KHÔNG đưa ra lời giải đầy đủ hay đáp số cuối cùng ngay lập tức. Hãy dắt tay học sinh tự tìm ra đáp án.');\nconst tutorPrompt = baseTutor + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi cần gợi ý của học sinh:\\n\" + userPrompt +\n  \"\\n\\nHướng dẫn từng bước bằng câu hỏi gợi mở, không đưa đáp số trực tiếp.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n\n// --- Direct Solver ---\nconst baseSolver = getPrompt('direct_solver', 'Bạn là một Trợ lý Giải Toán Tiểu học nhanh chóng và chính xác. Nhiệm vụ của bạn là đưa ra kết quả cuối cùng ngay lập tức, sau đó trình bày bài giải chi tiết theo đúng chuẩn sư phạm lớp 3.');\nconst solverPrompt = baseSolver + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi/Bài toán cần giải:\\n\" + userPrompt +\n  \"\\n\\n[Ans] Đưa ra đáp số nhanh trước, sau đó trình bày từng bước giải chi tiết.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n\nreturn {\n  prompt: userPrompt,\n  joined_context: joinedContext,\n  citation_block: effectiveCitationBlock,\n  selected_agent: finalAgent,\n  requires_rag: finalRequires,\n  retrieval_failed: retrievalFailed,\n  rag_guardrail_triggered: false,\n  default_teacher_prompt: defaultTeacherPrompt,\n  barem_prompt: baremPrompt,\n  theory_prompt: theoryPrompt,\n  exercise_prompt: exercisePrompt,\n  tutor_prompt: tutorPrompt,\n  solver_prompt: solverPrompt,\n  predicted_intents: predictedIntents\n};"
       },
@@ -522,6 +414,20 @@
         1460,
         680
       ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const securityNode = $('Security & Sanitization Gate').first().json.body;\nconst userPrompt = securityNode.prompt;\nconst promptOverrides = securityNode.prompt_overrides || {};\n\nlet activePrompts = {};\ntry {\n  activePrompts = $('Fetch Active Prompts').first().json;\n} catch (e) {\n  activePrompts = {};\n}\n\nconst plannerPromptTemplate = promptOverrides.planner || activePrompts.planner || `Bạn là một Điều phối viên học tập AI (Orchestrator Agent). Nhiệm vụ của bạn là phân tích câu hỏi/yêu cầu của học sinh hoặc phụ huynh để:\n1. Chọn ra chuyên gia hoặc hướng xử lý phù hợp nhất (selected_agent).\n2. Phân tích tính rõ ràng của yêu cầu. Nếu yêu cầu mơ hồ, chưa rõ ý định 50/50, nhập danh từ/khái niệm đứng một mình (như \"hình vuông\", \"phép cộng\", \"bảng nhân 5\", \"mét vuông\"), hoặc không có cấu trúc câu hỏi/hành động rõ ràng -> BẮT BUỘC chọn selected_agent = \"no_intent\".\n3. Xác định xem có cần tra cứu ngữ cảnh SGK (RAG) hay không (requires_rag).\n\nCác lựa chọn selected_agent:\n- \"barem_review\": Người dùng yêu cầu chấm điểm bài làm dựa trên đề/barem.\n- \"theory_explanation\": Người dùng yêu cầu giải thích lý thuyết/khái niệm toán cụ thể.\n- \"exercise_generator\": Người dùng yêu cầu tạo/cho bộ bài tập mới để luyện tập.\n- \"suggestive_tutor\": Học sinh cần gợi ý từng bước để tự giải bài tập.\n- \"direct_solver\": Người dùng cần giải nhanh và cho đáp số ngay.\n- \"no_intent\": Chọn khi yêu cầu chưa rõ ràng, mơ hồ 50/50, nhập danh từ/khái niệm/từ khóa ngắn gọn độc lập (ví dụ: \"hình vuông\", \"chu vi\", \"phép cộng\"), hoặc không có cấu trúc câu hỏi rõ ràng.\n- \"default\": Trò chuyện xã giao thân thiện.\n\nQuy tắc BẮT BUỘC khi chọn \"no_intent\":\n- Khi selected_agent = \"no_intent\", bạn BẮT BUỘC phải đưa 2 đến 3 tùy chọn gợi ý khả thi nhất vào danh sách \"predicted_intents\" (ví dụ: [\"theory_explanation\", \"exercise_generator\", \"suggestive_tutor\"]).`;\n\nconst fullPlannerPrompt = `${plannerPromptTemplate}\\n\\nCâu hỏi/Yêu cầu của người dùng:\\n${userPrompt}\\n\\nHãy trả về chính xác định dạng JSON sau (KHÔNG kèm văn bản ngoài JSON):\\n{\\n  \"selected_agent\": \"tên_agent\",\\n  \"predicted_intents\": [\"intent_1\", \"intent_2\", \"intent_3\"],\\n  \"requires_rag\": true | false\\n}`;\n\nconst tagUuids = securityNode.tag_name_uuid || [];\nconst orgIds = securityNode.org_id || [];\n\n// Execute BOTH HTTP requests concurrently in parallel using Promise.all\nconst [plannerResRaw, retrievalResRaw] = await Promise.all([\n  this.helpers.httpRequest({\n    method: 'POST',\n    url: 'http://host.docker.internal:8080/api/llm',\n    body: {\n      prompt: fullPlannerPrompt\n    },\n    json: true\n  }).catch(err => ({ text: \"{}\" })),\n  \n  this.helpers.httpRequest({\n    method: 'POST',\n    url: 'http://host.docker.internal:8080/api/retrieval',\n    body: {\n      text: userPrompt,\n      tag_name_uuids: tagUuids,\n      org_ids: orgIds,\n      type: \"doc\",\n      top_k: 3\n    },\n    json: true\n  }).catch(err => ({ results: [] }))\n]);\n\n// --- Parse Planner Decision ---\nlet selectedAgent = \"default\";\nlet requiresRag = false;\nlet predictedIntents = [];\ntry {\n  const text = plannerResRaw.text || \"\";\n  const cleanText = text.replace(/```json/gi, \"\").replace(/```/gi, \"\").trim();\n  const parsed = JSON.parse(cleanText);\n  selectedAgent = parsed.selected_agent || \"default\";\n  requiresRag = (parsed.requires_rag === true || parsed.requires_rag === \"true\");\n  predictedIntents = parsed.predicted_intents || [];\n} catch (e) {\n  selectedAgent = \"default\";\n  requiresRag = false;\n  predictedIntents = [];\n}\n\n// --- Process Retrieval Results ---\nconst results = (retrievalResRaw.results || []).filter(r => r.distance === undefined || r.distance < 1.6);\nconst contextTexts = [];\nconst citations = [];\nlet retrievalFailed = false;\n\nif (results.length === 0) {\n  retrievalFailed = true;\n} else {\n  results.forEach((chunk, index) => {\n    const meta = chunk.metadata || {};\n    const physPage = meta.physical_page;\n    const pdfPage = meta.pdf_page_number || (meta.pdf_page_index !== undefined ? meta.pdf_page_index + 1 : undefined);\n    const pageStr = (physPage !== undefined && physPage !== -1) ? `Trang ${physPage}` : (pdfPage !== undefined ? `Trang PDF ${pdfPage}` : 'Trang chưa rõ');\n    const lessonName = meta.lesson_name || 'Chưa rõ';\n    const fileName = meta.file_name || 'SGK Toán 3';\n    const volume = meta.volume || '1';\n    contextTexts.push(`--- Đoạn ${index + 1}: ${fileName}, ${pageStr} ---\\n${chunk.text}`);\n    citations.push(`- **Tài liệu:** ${fileName} | **Bài học:** ${lessonName} | **Vị trí:** ${pageStr} (Tập ${volume})`);\n  });\n}\n\nreturn {\n  selected_agent: selectedAgent,\n  requires_rag: requiresRag,\n  predicted_intents: predictedIntents,\n  joined_context: contextTexts.join('\\n\\n'),\n  citation_block: citations.join('\\n'),\n  retrieval_failed: retrievalFailed\n};"
+      },
+      "id": "e99d0c11-9a74-4b53-85f0-61d06e231999",
+      "name": "Parallel Planner & Retrieval Execution",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        580,
+        350
+      ]
     }
   ],
   "connections": {
@@ -551,67 +457,7 @@
       "main": [
         [
           {
-            "node": "Planner Agent",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Call Python Retrieval API",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Planner Agent": {
-      "main": [
-        [
-          {
-            "node": "Parse Planner Decision",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse Planner Decision": {
-      "main": [
-        [
-          {
-            "node": "Merge Branches",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Call Python Retrieval API": {
-      "main": [
-        [
-          {
-            "node": "Process Retrieval Results",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Process Retrieval Results": {
-      "main": [
-        [
-          {
-            "node": "Merge Branches",
-            "type": "main",
-            "index": 1
-          }
-        ]
-      ]
-    },
-    "Merge Branches": {
-      "main": [
-        [
-          {
-            "node": "Merge Context Nodes",
+            "node": "Parallel Planner & Retrieval Execution",
             "type": "main",
             "index": 0
           }
@@ -827,6 +673,17 @@
         [
           {
             "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parallel Planner & Retrieval Execution": {
+      "main": [
+        [
+          {
+            "node": "Merge Context Nodes",
             "type": "main",
             "index": 0
           }

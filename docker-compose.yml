@@ -29,9 +29,10 @@ services:
       - USE_VERTEXAI=${USE_VERTEXAI}
       - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
       - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION}
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/data/gcp-key.json
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-key.json
     volumes:
       - ./data:/app/data
+      - ${GOOGLE_APPLICATION_CREDENTIALS}:/app/gcp-key.json:ro
       - ./data-samples:/app/data-samples
       - ./src:/app/src
       - ./tests:/app/tests

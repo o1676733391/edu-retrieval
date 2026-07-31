@@ -8,6 +8,8 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
       - ./rag_pedagogical_workflow.json:/home/node/workflows/rag_pedagogical_workflow.json
+    env_file:
+      - ../.env
     environment:
       - GENERIC_TIMEZONE=America/New_York
       - TZ=America/New_York
