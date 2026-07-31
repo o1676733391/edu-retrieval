@@ -129,7 +129,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "let joinedContext = \"\";\nlet citationBlock = \"\";\nlet retrievalFailed = false;\n\nconst selectedAgent = $json.selected_agent;\nconst requiresRag = $json.requires_rag;\n\nif (requiresRag) {\n  joinedContext = $json.joined_context || \"\";\n  citationBlock = $json.citation_block || \"\";\n  retrievalFailed = ($json.retrieval_failed === true || $json.retrieval_failed === \"true\");\n}\n\nconst securityNode = $('Security & Sanitization Gate').first().json.body;\nconst userPrompt = securityNode.prompt;\nconst overrides = securityNode.prompt_overrides || {};\n\nlet activePrompts = {};\ntry {\n  activePrompts = $('Fetch Active Prompts').first().json;\n} catch (e) {\n  activePrompts = {};\n}\n\nconst getPrompt = (agentName, defaultVal) => {\n  return overrides[agentName] || activePrompts[agentName] || defaultVal;\n};\n\nlet finalAgent = selectedAgent;\nlet finalRequires = requiresRag;\nif (securityNode.agent_mode && securityNode.agent_mode !== \"default\" && securityNode.agent_mode !== \"\") {\n  finalAgent = securityNode.agent_mode;\n  if (securityNode.agent_mode !== \"default\") {\n    finalRequires = true;\n  }\n}\n\n// NEW RULE: if RAG is required but retrieval failed (no matching documents found in RAG),\n// push to \"no_intent\" to present options to the user.\nif (finalRequires && retrievalFailed) {\n  finalAgent = \"no_intent\";\n}\n\n// Never block/reject using fallback text - allow external LLM intelligence for all modules\nlet ragGuardrailTriggered = false;\n\nlet effectiveCitationBlock = citationBlock;\nif (!citationBlock || citationBlock.trim() === \"\" || retrievalFailed) {\n  effectiveCitationBlock = \"- **Nguồn tham khảo:** Kiến thức mở rộng\";\n}\n\nconst RAG_RULE_PREFIX = \"HƯỚNG DẪN SỬ DỤNG NGỮ CẢNH & KIẾN THỨC MỞ RỘNG:\\n\" +\n  \"- Bạn ĐƯỢC PHÉP truy cập và sử dụng triệt để trí tuệ/kiến thức mở rộng của bản thân để giải đáp câu hỏi, tạo bộ bài tập hoặc giảng giải lý thuyết một cách sư phạm nhất.\\n\" +\n  \"- Nếu Ngữ cảnh SGK có thông tin, hãy ưu tiên tham khảo nội dung và độ khó từ SGK.\\n\" +\n  \"- Nếu Ngữ cảnh SGK không có hoặc không đầy đủ (hoặc retrieval không tìm thấy), hãy sử dụng kiến thức mở rộng chuyên môn để trả lời khéo léo và chính xác.\\n\\n\" +\n  \"Ngữ cảnh tài liệu SGK (nếu có):\\n\" + joinedContext + \"\\n\\n\";\n\n// --- Default Teacher ---\nlet defaultTeacherPrompt = \"\";\nconst baseDefaultTeacher = getPrompt('default_teacher', 'Bạn là một giáo viên tiểu học thân thiện, tận tụy và dịu dàng.');\nif (finalRequires) {\n  defaultTeacherPrompt = baseDefaultTeacher + \"\\n\\n\" + RAG_RULE_PREFIX +\n    \"Câu hỏi của người dùng:\\n\" + userPrompt +\n    \"\\n\\nYêu cầu câu trả lời:\\n1. Trả lời thân thiện, giải thích từng bước logic toán học rõ ràng.\\n2. Trả lời hoàn toàn bằng tiếng Việt.\\n3. Cuối câu trả lời, in rõ phần trích dẫn nguồn theo đúng định dạng sau:\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n} else {\n  defaultTeacherPrompt = baseDefaultTeacher + \" Hãy trò chuyện thân thiện, trả lời tự nhiên hoặc giải thích toán học đơn giản cho câu hỏi của người dùng.\\n\\nCâu hỏi/Lời nhắn của người dùng:\\n\" + userPrompt + \"\\n\\nYêu cầu:\\n1. Trả lời thân thiện, ngọt ngào bằng tiếng Việt.\\n2. Cuối câu trả lời, in trích dẫn:\\n\\n---\\n **Nguồn tham khảo:**\\n- **Nguồn tham khảo:** Kiến thức mở rộng\";\n}\n\n// --- Barem Reviewer ---\nconst baseBarem = getPrompt('barem_review', 'Bạn là một giáo viên tiểu học thân thiện, tận tụy và công tâm. Nhiệm vụ của bạn là chấm điểm và nhận xét bài làm của học sinh dựa trên Barem điểm và đáp án chuẩn được cung cấp.');\nconst baremPrompt = baseBarem + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi/Yêu cầu chấm điểm (chứa Đề bài, Barem & Bài làm của học sinh):\\n\" + userPrompt +\n  \"\\n\\nHãy thực hiện chấm điểm và đưa ra nhận xét sư phạm chi tiết, ấm áp.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n\n// --- Theory Explainer ---\nconst baseTheory = getPrompt('theory_explanation', 'Bạn là một giáo viên tiểu học có tài giảng dạy trực quan, sinh động. Nhiệm vụ của bạn là giải thích các định nghĩa, khái niệm toán học lớp 3 từ sách giáo khoa một cách dễ hiểu nhất.');\nconst theoryPrompt = baseTheory + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi của học sinh/phụ huynh về khái niệm lý thuyết:\\n\" + userPrompt +\n  \"\\n\\nGiải thích trực quan, gần gũi, dùng ví dụ thực tế cho trẻ em 8-9 tuổi.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n\n// --- Exercise Generator ---\nconst baseExercise = getPrompt('exercise_generator', 'Bạn là một chuyên gia biên soạn tài liệu toán tiểu học. Nhiệm vụ của bạn là tạo ra các bài tập tự luyện mới dựa trên ngữ cảnh bài học trong sách giáo khoa.');\nconst exercisePrompt = baseExercise + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Yêu cầu tạo bài tập của người dùng:\\n\" + userPrompt +\n  \"\\n\\nTạo bộ bài tập 3 mức độ (Nhận biết, Vận dụng, Vận dụng cao) phù hợp với học sinh lớp 3. Tham khảo độ khó từ SGK nếu có, hoặc dùng kiến thức mở rộng để soạn bộ bài tập chất lượng.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n\n// --- Suggestive Tutor ---\nconst baseTutor = getPrompt('suggestive_tutor', 'Bạn là một Gia sư Toán Tiểu học có phương pháp dạy học tương tác, gợi mở (Socratic method). TUYỆT ĐỐI KHÔNG đưa ra lời giải đầy đủ hay đáp số cuối cùng ngay lập tức. Hãy dắt tay học sinh tự tìm ra đáp án.');\nconst tutorPrompt = baseTutor + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi cần gợi ý của học sinh:\\n\" + userPrompt +\n  \"\\n\\nHướng dẫn từng bước bằng câu hỏi gợi mở, không đưa đáp số trực tiếp.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n\n// --- Direct Solver ---\nconst baseSolver = getPrompt('direct_solver', 'Bạn là một Trợ lý Giải Toán Tiểu học nhanh chóng và chính xác. Nhiệm vụ của bạn là đưa ra kết quả cuối cùng ngay lập tức, sau đó trình bày bài giải chi tiết theo đúng chuẩn sư phạm lớp 3.');\nconst solverPrompt = baseSolver + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi/Bài toán cần giải:\\n\" + userPrompt +\n  \"\\n\\n[Ans] Đưa ra đáp số nhanh trước, sau đó trình bày từng bước giải chi tiết.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n\nreturn {\n  prompt: userPrompt,\n  joined_context: joinedContext,\n  citation_block: effectiveCitationBlock,\n  selected_agent: finalAgent,\n  requires_rag: finalRequires,\n  retrieval_failed: retrievalFailed,\n  rag_guardrail_triggered: false,\n  default_teacher_prompt: defaultTeacherPrompt,\n  barem_prompt: baremPrompt,\n  theory_prompt: theoryPrompt,\n  exercise_prompt: exercisePrompt,\n  tutor_prompt: tutorPrompt,\n  solver_prompt: solverPrompt,\n  predicted_intents: predictedIntents\n};"
+        "jsCode": "let joinedContext = \"\";\nlet citationBlock = \"\";\nlet retrievalFailed = false;\n\nconst selectedAgent = $json.selected_agent;\nconst requiresRag = $json.requires_rag;\n\n// predicted_intents comes from 'Parse Planner Decision' via the Merge node.\nlet predictedIntents = $json.predicted_intents;\nif (predictedIntents === undefined || predictedIntents === null) {\n  try {\n    predictedIntents = $('Parse Planner Decision').first().json.predicted_intents || [];\n  } catch (e) {\n    predictedIntents = [];\n  }\n}\nif (typeof predictedIntents === \"string\") {\n  try { predictedIntents = JSON.parse(predictedIntents); } catch (e) { predictedIntents = []; }\n}\nif (!Array.isArray(predictedIntents)) predictedIntents = [];\n\nif (requiresRag) {\n  joinedContext = $json.joined_context || \"\";\n  citationBlock = $json.citation_block || \"\";\n  retrievalFailed = ($json.retrieval_failed === true || $json.retrieval_failed === \"true\");\n}\n\nconst securityNode = $('Security & Sanitization Gate').first().json.body;\nconst userPrompt = securityNode.prompt;\nconst overrides = securityNode.prompt_overrides || {};\n\nlet activePrompts = {};\ntry {\n  activePrompts = $('Fetch Active Prompts').first().json;\n} catch (e) {\n  activePrompts = {};\n}\n\nconst getPrompt = (agentName, defaultVal) => {\n  return overrides[agentName] || activePrompts[agentName] || defaultVal;\n};\n\nlet finalAgent = selectedAgent;\nlet finalRequires = requiresRag;\nif (securityNode.agent_mode && securityNode.agent_mode !== \"default\" && securityNode.agent_mode !== \"\") {\n  finalAgent = securityNode.agent_mode;\n  if (securityNode.agent_mode !== \"default\") {\n    finalRequires = true;\n  }\n}\n\n// NEW RULE: if RAG is required but retrieval failed (no matching documents found in RAG),\n// push to \"no_intent\" to present options to the user.\nif (finalRequires && retrievalFailed) {\n  finalAgent = \"no_intent\";\n}\n\n// Never block/reject using fallback text - allow external LLM intelligence for all modules\nlet ragGuardrailTriggered = false;\n\nlet effectiveCitationBlock = citationBlock;\nif (!citationBlock || citationBlock.trim() === \"\" || retrievalFailed) {\n  effectiveCitationBlock = \"- **Nguồn tham khảo:** Kiến thức mở rộng\";\n}\n\nconst RAG_RULE_PREFIX = \"HƯỚNG DẪN SỬ DỤNG NGỮ CẢNH & KIẾN THỨC MỞ RỘNG:\\n\" +\n  \"- Bạn ĐƯỢC PHÉP truy cập và sử dụng triệt để trí tuệ/kiến thức mở rộng của bản thân để giải đáp câu hỏi, tạo bộ bài tập hoặc giảng giải lý thuyết một cách sư phạm nhất.\\n\" +\n  \"- Nếu Ngữ cảnh SGK có thông tin, hãy ưu tiên tham khảo nội dung và độ khó từ SGK.\\n\" +\n  \"- Nếu Ngữ cảnh SGK không có hoặc không đầy đủ (hoặc retrieval không tìm thấy), hãy sử dụng kiến thức mở rộng chuyên môn để trả lời khéo léo và chính xác.\\n\\n\" +\n  \"Ngữ cảnh tài liệu SGK (nếu có):\\n\" + joinedContext + \"\\n\\n\";\n\n// --- Default Teacher ---\nlet defaultTeacherPrompt = \"\";\nconst baseDefaultTeacher = getPrompt('default_teacher', 'Bạn là một giáo viên tiểu học thân thiện, tận tụy và dịu dàng.');\nif (finalRequires) {\n  defaultTeacherPrompt = baseDefaultTeacher + \"\\n\\n\" + RAG_RULE_PREFIX +\n    \"Câu hỏi của người dùng:\\n\" + userPrompt +\n    \"\\n\\nYêu cầu câu trả lời:\\n1. Trả lời thân thiện, giải thích từng bước logic toán học rõ ràng.\\n2. Trả lời hoàn toàn bằng tiếng Việt.\\n3. Cuối câu trả lời, in rõ phần trích dẫn nguồn theo đúng định dạng sau:\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n} else {\n  defaultTeacherPrompt = baseDefaultTeacher + \" Hãy trò chuyện thân thiện, trả lời tự nhiên hoặc giải thích toán học đơn giản cho câu hỏi của người dùng.\\n\\nCâu hỏi/Lời nhắn của người dùng:\\n\" + userPrompt + \"\\n\\nYêu cầu:\\n1. Trả lời thân thiện, ngọt ngào bằng tiếng Việt.\\n2. Cuối câu trả lời, in trích dẫn:\\n\\n---\\n **Nguồn tham khảo:**\\n- **Nguồn tham khảo:** Kiến thức mở rộng\";\n}\n\n// --- Barem Reviewer ---\nconst baseBarem = getPrompt('barem_review', 'Bạn là một giáo viên tiểu học thân thiện, tận tụy và công tâm. Nhiệm vụ của bạn là chấm điểm và nhận xét bài làm của học sinh dựa trên Barem điểm và đáp án chuẩn được cung cấp.');\nconst baremPrompt = baseBarem + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi/Yêu cầu chấm điểm (chứa Đề bài, Barem & Bài làm của học sinh):\\n\" + userPrompt +\n  \"\\n\\nHãy thực hiện chấm điểm và đưa ra nhận xét sư phạm chi tiết, ấm áp.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n\n// --- Theory Explainer ---\nconst baseTheory = getPrompt('theory_explanation', 'Bạn là một giáo viên tiểu học có tài giảng dạy trực quan, sinh động. Nhiệm vụ của bạn là giải thích các định nghĩa, khái niệm toán học lớp 3 từ sách giáo khoa một cách dễ hiểu nhất.');\nconst theoryPrompt = baseTheory + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi của học sinh/phụ huynh về khái niệm lý thuyết:\\n\" + userPrompt +\n  \"\\n\\nGiải thích trực quan, gần gũi, dùng ví dụ thực tế cho trẻ em 8-9 tuổi.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n\n// --- Exercise Generator ---\nconst baseExercise = getPrompt('exercise_generator', 'Bạn là một chuyên gia biên soạn tài liệu toán tiểu học. Nhiệm vụ của bạn là tạo ra các bài tập tự luyện mới dựa trên ngữ cảnh bài học trong sách giáo khoa.');\nconst exercisePrompt = baseExercise + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Yêu cầu tạo bài tập của người dùng:\\n\" + userPrompt +\n  \"\\n\\nTạo bộ bài tập 3 mức độ (Nhận biết, Vận dụng, Vận dụng cao) phù hợp với học sinh lớp 3. Tham khảo độ khó từ SGK nếu có, hoặc dùng kiến thức mở rộng để soạn bộ bài tập chất lượng.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n\n// --- Suggestive Tutor ---\nconst baseTutor = getPrompt('suggestive_tutor', 'Bạn là một Gia sư Toán Tiểu học có phương pháp dạy học tương tác, gợi mở (Socratic method). TUYỆT ĐỐI KHÔNG đưa ra lời giải đầy đủ hay đáp số cuối cùng ngay lập tức. Hãy dắt tay học sinh tự tìm ra đáp án.');\nconst tutorPrompt = baseTutor + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi cần gợi ý của học sinh:\\n\" + userPrompt +\n  \"\\n\\nHướng dẫn từng bước bằng câu hỏi gợi mở, không đưa đáp số trực tiếp.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n\n// --- Direct Solver ---\nconst baseSolver = getPrompt('direct_solver', 'Bạn là một Trợ lý Giải Toán Tiểu học nhanh chóng và chính xác. Nhiệm vụ của bạn là đưa ra kết quả cuối cùng ngay lập tức, sau đó trình bày bài giải chi tiết theo đúng chuẩn sư phạm lớp 3.');\nconst solverPrompt = baseSolver + \"\\n\\n\" + RAG_RULE_PREFIX +\n  \"Câu hỏi/Bài toán cần giải:\\n\" + userPrompt +\n  \"\\n\\n[Ans] Đưa ra đáp số nhanh trước, sau đó trình bày từng bước giải chi tiết.\\n\\n---\\n **Nguồn tham khảo:**\\n\" + effectiveCitationBlock;\n\nreturn {\n  prompt: userPrompt,\n  joined_context: joinedContext,\n  citation_block: effectiveCitationBlock,\n  selected_agent: finalAgent,\n  requires_rag: finalRequires,\n  retrieval_failed: retrievalFailed,\n  rag_guardrail_triggered: false,\n  default_teacher_prompt: defaultTeacherPrompt,\n  barem_prompt: baremPrompt,\n  theory_prompt: theoryPrompt,\n  exercise_prompt: exercisePrompt,\n  tutor_prompt: tutorPrompt,\n  solver_prompt: solverPrompt,\n  predicted_intents: predictedIntents\n};"
       },
       "id": "d44d0c11-9a74-4b53-85f0-61d06e23114c",
       "name": "Merge Context Nodes",
@@ -522,6 +522,74 @@
         1460,
         680
       ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "conv-id-not-empty",
+              "leftValue": "={{ $json.conversation_id || '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Has Conversation Id",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        350
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BE_API_BASE_URL || 'http://host.docker.internal:3001' }}/webhooks/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-webhook-secret",
+              "value": "={{ $env.WEBHOOK_SECRET || '' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.assign({ content: ($json.output || $json.message || ''), conversation_id: $json.conversation_id, sender: 'ai' }, $json.status === 'ambiguous_intent' ? { option: $json.predicted_intents } : {})) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000002",
+      "name": "Push Message to BE",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2640,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     }
   ],
   "connections": {
@@ -797,7 +865,13 @@
     },
     "Respond to Webhook Fallback": {
       "main": [
-        []
+        [
+          {
+            "node": "Has Conversation Id",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Call Python Outline API": {
@@ -831,6 +905,34 @@
             "index": 0
           }
         ]
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        [
+          {
+            "node": "Has Conversation Id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Conversation Id": {
+      "main": [
+        [
+          {
+            "node": "Push Message to BE",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Push Message to BE": {
+      "main": [
+        []
       ]
     }
   },

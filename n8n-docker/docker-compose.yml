@@ -11,6 +11,12 @@ services:
     environment:
       - GENERIC_TIMEZONE=America/New_York
       - TZ=America/New_York
+      # Cho phép expression `{{ $env.* }}` trong node (mặc định n8n chặn -> "access to env vars denied")
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      # BE nhận message AI qua POST {BE_API_BASE_URL}/webhooks/messages
+      # Giá trị lấy từ .env ở root repo (n8n-docker/.env là symlink tới ../.env)
+      - BE_API_BASE_URL=${BE_API_BASE_URL:-http://host.docker.internal:3001}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
     entrypoint: ["/bin/sh", "-c"]
     command: "n8n start"
 
