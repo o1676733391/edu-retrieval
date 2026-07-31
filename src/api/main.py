@@ -64,6 +64,7 @@ if not console_logger.handlers:
     console_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
     console_logger.addHandler(console_handler)
 from src.pipeline.ingest import run_ingest
+from src.pipeline.houses import run_houses_ingest
 from src.vector_store.search import book_knowledge_search, multi_domain_retrieval
 from src.vector_store.client import get_vector_db_client, get_embedding_function, get_or_create_collection, get_vector_store
 from src.prompt_registry.registry import (
@@ -199,6 +200,20 @@ class SearchRequest(BaseModel):
     user_id: Optional[str] = None
     groups: Optional[list[str]] = None
 
+
+class HouseIngestRequest(BaseModel):
+    houses_json_path: Optional[str] = None
+    images_dir: Optional[str] = None
+    collection_name: Optional[str] = "houses"
+    force: Optional[bool] = False
+    batch_size: Optional[int] = 5
+
+
+class HouseSearchRequest(BaseModel):
+    query: str
+    collection_name: Optional[str] = "houses"
+    top_k: Optional[int] = 5
+
 @app.get("/api/health")
 def health_check():
     """
@@ -257,6 +272,63 @@ def ingest_document(req: IngestRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/houses/ingest")
+def ingest_houses_api(req: HouseIngestRequest):
+    """
+    Ingests houses listings, processes images via Multimodal OCR/description,
+    synthesizes a unified description, embeds, and indexes them into Vector DB.
+    """
+    try:
+        results = run_houses_ingest(
+            houses_json_path=req.houses_json_path,
+            images_dir=req.images_dir,
+            collection_name=req.collection_name,
+            force_ocr=req.force,
+            batch_size=req.batch_size
+        )
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/houses/search")
+def search_houses_api(req: HouseSearchRequest):
+    """
+    Queries the houses collection using semantic dense vector search.
+    """
+    try:
+        # Get vector store
+        vector_store = get_vector_store("houses", collection_name_override=req.collection_name)
+        
+        # Execute query
+        raw_results = vector_store.query(
+            query_text=req.query,
+            top_k=req.top_k
+        )
+        
+        # Format results
+        formatted_results = []
+        if raw_results and "ids" in raw_results and raw_results["ids"] and raw_results["ids"][0]:
+            for idx, doc_id in enumerate(raw_results["ids"][0]):
+                metadata = raw_results["metadatas"][0][idx] if ("metadatas" in raw_results and len(raw_results["metadatas"]) > 0 and len(raw_results["metadatas"][0]) > idx) else {}
+                distance = raw_results["distances"][0][idx] if ("distances" in raw_results and len(raw_results["distances"]) > 0 and len(raw_results["distances"][0]) > idx) else 0.0
+                formatted_results.append({
+                    "id": doc_id,
+                    "distance": distance,
+                    "metadata": metadata,
+                    "unified_description": metadata.get("unified_description", "")
+                })
+                
+        return {
+            "query": req.query,
+            "collection_name": req.collection_name,
+            "results": formatted_results
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/search")
 def search_textbook_api(req: SearchRequest):
