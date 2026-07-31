@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import requests
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -95,6 +96,29 @@ def on_startup():
     initialize_prompt_db()
 
 
+def notify_ai_error_webhook(status_code: int, error_message: str, api_route: str):
+    """
+    Reports a 5xx API error to rag-assistant-be via POST /webhooks/ai-error, so
+    it can broadcast a socket event and let FE stop waiting instead of hitting
+    its own timeout. Best-effort: failures are logged as warnings and never
+    interrupt the response already sent to the caller.
+    """
+    if not config.BE_API_BASE_URL or not config.WEBHOOK_SECRET:
+        return
+    url = f"{config.BE_API_BASE_URL}/webhooks/ai-error"
+    try:
+        resp = requests.post(
+            url,
+            json={"status": status_code, "error": error_message, "api_route": api_route},
+            headers={"x-webhook-secret": config.WEBHOOK_SECRET},
+            timeout=10
+        )
+        if resp.status_code != 200:
+            print(f"[Warning] ai-error webhook failed ({resp.status_code}) for {api_route}: {resp.text}")
+    except Exception as e:
+        print(f"[Warning] Failed to call ai-error webhook for {api_route}: {e}")
+
+
 @app.middleware("http")
 async def log_requests_responses(request: Request, call_next):
     req_body = await request.body()
@@ -112,6 +136,13 @@ async def log_requests_responses(request: Request, call_next):
 
     status_label = "OK" if response.status_code < 400 else "FAILED"
     console_logger.info(f"[API] {request.method} {request.url.path} -> {response.status_code} {status_label}")
+
+    if response.status_code >= 500:
+        try:
+            error_message = json.loads(resp_body).get("detail", "")
+        except (json.JSONDecodeError, AttributeError):
+            error_message = resp_body.decode("utf-8", errors="replace")
+        notify_ai_error_webhook(response.status_code, error_message, request.url.path)
 
     return Response(
         content=resp_body,
