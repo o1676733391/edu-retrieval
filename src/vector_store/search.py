@@ -48,8 +48,8 @@ def extract_hints_from_query(query: str) -> tuple[int | None, str | None]:
     elif re.search(r'\bsgk\s*2\b', query, re.IGNORECASE):
         volume_hint = "2"
 
-    # 2. Page extraction: accept unambiguous keywords "trang", "tr.", "trang số", "trang thứ", "trang số:"
-    page_match = re.search(r'\b(?:trang|tr)\.?(?:\s+s[ốô]|\s+th[ứu]|s[ốô]|\s*:)?\s*(\d+)\b', query, re.IGNORECASE)
+    # 2. Page extraction: accept keywords "trang", "tr", "page", "p", "trang số", "trang so", "trang thứ", "trang số:"
+    page_match = re.search(r'\b(?:trang|tr|page|p)\.?(?:\s+s[ốôo]|\s+th[ứu]|s[ốôo]|\s*:|\s*#)?\s*(\d+)\b', query, re.IGNORECASE)
     if page_match:
         page_hint = int(page_match.group(1))
 
@@ -77,14 +77,16 @@ def rerank_page_chunks(query: str, candidate_results: list[dict], page_hint: int
         text = res.get("text") or ""
         score = res.get("rrf_score", 0.0)
 
-        # 1. Page exact match boost
+        # 1. Page exact match boost (Dominant boost for exact physical page)
         phys_page = meta.get("physical_page")
         pdf_num = meta.get("pdf_page_number")
         if page_hint is not None:
-            if phys_page == page_hint or pdf_num == page_hint:
-                score += 5.0
+            if phys_page == page_hint:
+                score += 100.0  # Highest priority for exact physical page
+            elif pdf_num == page_hint:
+                score += 25.0
             elif phys_page in [page_hint - 1, page_hint + 1]:
-                score += 2.0
+                score += 10.0
 
         # 2. Exercise exact match boost
         if exercise_hint:
@@ -444,153 +446,153 @@ def multi_domain_retrieval(
             else:
                 filters.append({"org_id": {"$in": clean_org_ids}})
                 
-            if volume_hint:
-                filters.append({"volume": str(volume_hint)})
-                
-            if page_hint:
-                page_window = [page_hint - 1, page_hint, page_hint + 1]
-                page_window = [p for p in page_window if p >= 0]
-                page_clauses = []
-                for p in page_window:
-                    page_clauses.append({"physical_page": p})
-                    page_clauses.append({"pdf_page_number": p})
-                    page_clauses.append({"pdf_page_index": p - 1 if p > 0 else 0})
-                filters.append({"$or": page_clauses})
-                
-            if from_date:
-                from_ts = parse_to_epoch(from_date)
-                if from_ts > 0:
-                    filters.append({"created_at_timestamp": {"$gte": float(from_ts)}})
-            if to_date:
-                to_ts = parse_to_epoch(to_date)
-                if to_ts > 0:
-                    if len(to_date) == 10:
-                        to_ts += 86399  # end of day
-                    filters.append({"created_at_timestamp": {"$lte": float(to_ts)}})
-                
-            where_filter = None
-            if len(filters) == 1:
-                where_filter = filters[0]
-            elif len(filters) > 1:
-                where_filter = {"$and": filters}
+        if volume_hint:
+            filters.append({"volume": str(volume_hint)})
             
-            # 1. Dense Search
-            dense_ids = []
-            dense_docs = {}
-            dense_metas = {}
-            dense_dists = {}
+        if page_hint:
+            page_window = [page_hint - 1, page_hint, page_hint + 1]
+            page_window = [p for p in page_window if p >= 0]
+            page_clauses = []
+            for p in page_window:
+                page_clauses.append({"physical_page": p})
+                page_clauses.append({"pdf_page_number": p})
+                page_clauses.append({"pdf_page_index": p - 1 if p > 0 else 0})
+            filters.append({"$or": page_clauses})
             
-            try:
-                query_res = vector_store.query(
-                    query_text=query,
-                    top_k=top_k,
-                    where=where_filter if where_filter else None
-                )
-                    
-                if query_res and query_res["ids"] and query_res["ids"][0]:
-                    for idx, doc_id in enumerate(query_res["ids"][0]):
+        if from_date:
+            from_ts = parse_to_epoch(from_date)
+            if from_ts > 0:
+                filters.append({"created_at_timestamp": {"$gte": float(from_ts)}})
+        if to_date:
+            to_ts = parse_to_epoch(to_date)
+            if to_ts > 0:
+                if len(to_date) == 10:
+                    to_ts += 86399  # end of day
+                filters.append({"created_at_timestamp": {"$lte": float(to_ts)}})
+            
+        where_filter = None
+        if len(filters) == 1:
+            where_filter = filters[0]
+        elif len(filters) > 1:
+            where_filter = {"$and": filters}
+        
+        # 1. Dense Search
+        dense_ids = []
+        dense_docs = {}
+        dense_metas = {}
+        dense_dists = {}
+        
+        try:
+            query_res = vector_store.query(
+                query_text=query,
+                top_k=top_k,
+                where=where_filter if where_filter else None
+            )
+                
+            if query_res and query_res["ids"] and query_res["ids"][0]:
+                for idx, doc_id in enumerate(query_res["ids"][0]):
+                    dense_ids.append(doc_id)
+                    dense_docs[doc_id] = query_res["documents"][0][idx]
+                    dense_metas[doc_id] = query_res["metadatas"][0][idx]
+                    dense_dists[doc_id] = query_res["distances"][0][idx] if "distances" in query_res and query_res["distances"] else 0.0
+
+            # Fallback: if strict page/volume filter yielded 0 dense results, retry without page/volume filters
+            if not dense_ids and where_filter and (page_hint or volume_hint):
+                fallback_filters = []
+                if meta_tag_filter:
+                    fallback_filters.append({"$or": [{"file_id": meta_tag_filter}, {"tag_name_uuid": meta_tag_filter}]})
+                if clean_org_ids:
+                    if len(clean_org_ids) == 1:
+                        fallback_filters.append({"org_id": clean_org_ids[0]})
+                    else:
+                        fallback_filters.append({"org_id": {"$in": clean_org_ids}})
+                fallback_where = fallback_filters[0] if len(fallback_filters) == 1 else ({"$and": fallback_filters} if len(fallback_filters) > 1 else None)
+                
+                fb_res = vector_store.query(query_text=query, top_k=top_k, where=fallback_where)
+                if fb_res and fb_res["ids"] and fb_res["ids"][0]:
+                    for idx, doc_id in enumerate(fb_res["ids"][0]):
                         dense_ids.append(doc_id)
-                        dense_docs[doc_id] = query_res["documents"][0][idx]
-                        dense_metas[doc_id] = query_res["metadatas"][0][idx]
-                        dense_dists[doc_id] = query_res["distances"][0][idx] if "distances" in query_res and query_res["distances"] else 0.0
-
-                # Fallback: if strict page/volume filter yielded 0 dense results, retry without page/volume filters
-                if not dense_ids and where_filter and (page_hint or volume_hint):
-                    fallback_filters = []
-                    if meta_tag_filter:
-                        fallback_filters.append({"$or": [{"file_id": meta_tag_filter}, {"tag_name_uuid": meta_tag_filter}]})
-                    if org_ids:
-                        if len(org_ids) == 1:
-                            fallback_filters.append({"org_id": org_ids[0]})
-                        else:
-                            fallback_filters.append({"org_id": {"$in": org_ids}})
-                    fallback_where = fallback_filters[0] if len(fallback_filters) == 1 else ({"$and": fallback_filters} if len(fallback_filters) > 1 else None)
-                    
-                    fb_res = vector_store.query(query_text=query, top_k=top_k, where=fallback_where)
-                    if fb_res and fb_res["ids"] and fb_res["ids"][0]:
-                        for idx, doc_id in enumerate(fb_res["ids"][0]):
-                            dense_ids.append(doc_id)
-                            dense_docs[doc_id] = fb_res["documents"][0][idx]
-                            dense_metas[doc_id] = fb_res["metadatas"][0][idx]
-                            dense_dists[doc_id] = fb_res["distances"][0][idx] if "distances" in fb_res and fb_res["distances"] else 0.0
-            except Exception as e:
-                print(f"Error querying dense vectors for collection {c_name}: {e}")
-                
-            # 2. BM25 Search with Bigrams
-            bm25_results = []
-            try:
-                all_docs = vector_store.get_all(where=where_filter if where_filter else None)
-                if (not all_docs or not all_docs.get("ids")) and where_filter and (page_hint or volume_hint):
-                    fallback_filters = []
-                    if meta_tag_filter:
-                        fallback_filters.append({"$or": [{"file_id": meta_tag_filter}, {"tag_name_uuid": meta_tag_filter}]})
-                    if org_ids:
-                        if len(org_ids) == 1:
-                            fallback_filters.append({"org_id": org_ids[0]})
-                        else:
-                            fallback_filters.append({"org_id": {"$in": org_ids}})
-                    fallback_where = fallback_filters[0] if len(fallback_filters) == 1 else ({"$and": fallback_filters} if len(fallback_filters) > 1 else None)
-                    all_docs = vector_store.get_all(where=fallback_where)
-                    
-                if all_docs and all_docs["ids"]:
-                    corpus = all_docs["documents"]
-                    metadatas = all_docs["metadatas"]
-                    ids = all_docs["ids"]
-                    
-                    tokenized_corpus = [tokenize_vietnamese(doc, include_bigrams=True) for doc in corpus]
-                    bm25 = BM25Okapi(tokenized_corpus)
-                    
-                    query_tokens = tokenize_vietnamese(query, include_bigrams=True)
-                    # Exclude common stopwords and ultra-generic single terms from BM25 query to avoid noise
-                    stop_words = {"là", "gì", "thế", "nào", "cho", "hỏi", "em", "với", "các", "những", "số", "của", "và", "có", "trong", "được"}
-                    filtered_query_tokens = [t for t in query_tokens if t not in stop_words and not (t.isalpha() and len(t) <= 1)]
-                    
-                    if filtered_query_tokens:
-                        scores = bm25.get_scores(filtered_query_tokens)
-                        scored_docs = list(zip(ids, corpus, metadatas, scores))
-                        scored_docs.sort(key=lambda x: x[3], reverse=True)
-                        bm25_results = scored_docs[:top_k * 2]
-            except Exception as e:
-                print(f"Error executing BM25 for collection {c_name}: {e}")
-                
-            # 3. Hybrid RRF Fusion
-            rrf_scores = {}
-            doc_details = {}
+                        dense_docs[doc_id] = fb_res["documents"][0][idx]
+                        dense_metas[doc_id] = fb_res["metadatas"][0][idx]
+                        dense_dists[doc_id] = fb_res["distances"][0][idx] if "distances" in fb_res and fb_res["distances"] else 0.0
+        except Exception as e:
+            print(f"Error querying dense vectors for collection {c_name}: {e}")
             
-            # Process Dense RRF
-            for rank, doc_id in enumerate(dense_ids):
+        # 2. BM25 Search with Bigrams
+        bm25_results = []
+        try:
+            all_docs = vector_store.get_all(where=where_filter if where_filter else None)
+            if (not all_docs or not all_docs.get("ids")) and where_filter and (page_hint or volume_hint):
+                fallback_filters = []
+                if meta_tag_filter:
+                    fallback_filters.append({"$or": [{"file_id": meta_tag_filter}, {"tag_name_uuid": meta_tag_filter}]})
+                if clean_org_ids:
+                    if len(clean_org_ids) == 1:
+                        fallback_filters.append({"org_id": clean_org_ids[0]})
+                    else:
+                        fallback_filters.append({"org_id": {"$in": clean_org_ids}})
+                fallback_where = fallback_filters[0] if len(fallback_filters) == 1 else ({"$and": fallback_filters} if len(fallback_filters) > 1 else None)
+                all_docs = vector_store.get_all(where=fallback_where)
+                
+            if all_docs and all_docs["ids"]:
+                corpus = all_docs["documents"]
+                metadatas = all_docs["metadatas"]
+                ids = all_docs["ids"]
+                
+                tokenized_corpus = [tokenize_vietnamese(doc, include_bigrams=True) for doc in corpus]
+                bm25 = BM25Okapi(tokenized_corpus)
+                
+                query_tokens = tokenize_vietnamese(query, include_bigrams=True)
+                # Exclude common stopwords and ultra-generic single terms from BM25 query to avoid noise
+                stop_words = {"là", "gì", "thế", "nào", "cho", "hỏi", "em", "với", "các", "những", "số", "của", "và", "có", "trong", "được"}
+                filtered_query_tokens = [t for t in query_tokens if t not in stop_words and not (t.isalpha() and len(t) <= 1)]
+                
+                if filtered_query_tokens:
+                    scores = bm25.get_scores(filtered_query_tokens)
+                    scored_docs = list(zip(ids, corpus, metadatas, scores))
+                    scored_docs.sort(key=lambda x: x[3], reverse=True)
+                    bm25_results = scored_docs[:top_k * 2]
+        except Exception as e:
+            print(f"Error executing BM25 for collection {c_name}: {e}")
+            
+        # 3. Hybrid RRF Fusion
+        rrf_scores = {}
+        doc_details = {}
+        
+        # Process Dense RRF
+        for rank, doc_id in enumerate(dense_ids):
+            rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + 1.0 / (60.0 + rank + 1)
+            doc_details[doc_id] = (dense_docs[doc_id], dense_metas[doc_id], dense_dists.get(doc_id, 0.0))
+            
+        # Process BM25 RRF
+        for rank, (doc_id, text, meta, score) in enumerate(bm25_results):
+            if score > 0:
                 rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + 1.0 / (60.0 + rank + 1)
-                doc_details[doc_id] = (dense_docs[doc_id], dense_metas[doc_id], dense_dists.get(doc_id, 0.0))
-                
-            # Process BM25 RRF
-            for rank, (doc_id, text, meta, score) in enumerate(bm25_results):
-                if score > 0:
-                    rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + 1.0 / (60.0 + rank + 1)
-                    if doc_id not in doc_details:
-                        doc_details[doc_id] = (text, meta, 0.5)
+                if doc_id not in doc_details:
+                    doc_details[doc_id] = (text, meta, 0.5)
 
-            # Process Page-Hint Matched Documents (Ensure 100% of target page chunks are included)
-            if page_hint and all_docs and all_docs.get("ids"):
-                for idx, doc_id in enumerate(all_docs["ids"]):
-                    if doc_id not in doc_details:
-                        text = all_docs["documents"][idx]
-                        meta = all_docs["metadatas"][idx]
-                        rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + 1.0 / (120.0 + idx + 1)
-                        doc_details[doc_id] = (text, meta, 0.1)
+        # Process Page-Hint Matched Documents (Ensure 100% of target page chunks are included)
+        if page_hint and all_docs and all_docs.get("ids"):
+            for idx, doc_id in enumerate(all_docs["ids"]):
+                if doc_id not in doc_details:
+                    text = all_docs["documents"][idx]
+                    meta = all_docs["metadatas"][idx]
+                    rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + 1.0 / (120.0 + idx + 1)
+                    doc_details[doc_id] = (text, meta, 0.1)
 
-            sorted_ids = sorted(rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True)
-            
-            effective_top_k = max(top_k, len(doc_details)) if page_hint else top_k
-            for doc_id in sorted_ids[:effective_top_k]:
-                text, meta, dist = doc_details[doc_id]
-                all_candidate_results.append({
-                    "id": doc_id,
-                    "collection": c_name,
-                    "text": text,
-                    "metadata": meta,
-                    "distance": dist,
-                    "rrf_score": rrf_scores[doc_id]
-                })
+        sorted_ids = sorted(rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True)
+        
+        effective_top_k = max(top_k, len(doc_details)) if page_hint else top_k
+        for doc_id in sorted_ids[:effective_top_k]:
+            text, meta, dist = doc_details[doc_id]
+            all_candidate_results.append({
+                "id": doc_id,
+                "collection": c_name,
+                "text": text,
+                "metadata": meta,
+                "distance": dist,
+                "rrf_score": rrf_scores[doc_id]
+            })
             
     # Page and Exercise Reranking
     exercise_hint = extract_exercise_hint(query)

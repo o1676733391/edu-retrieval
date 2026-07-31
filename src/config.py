@@ -3,7 +3,7 @@ from pathlib import Path
 # Load environment variables from .env file
 if Path(".env").exists():
     from dotenv import load_dotenv
-    load_dotenv()
+    load_dotenv(override=True)
 
 # Base paths
 BASE_DIR = Path(__file__).resolve().parent.parent

@@ -23,12 +23,8 @@ services:
     environment:
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
-      - VECTOR_DB_BACKEND=${VECTOR_DB_BACKEND}
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
-      - USE_VERTEXAI=${USE_VERTEXAI}
-      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
-      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-key.json
     volumes:
       - ./data:/app/data
