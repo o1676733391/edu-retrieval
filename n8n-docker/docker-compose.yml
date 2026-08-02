@@ -8,6 +8,7 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
       - ./rag_pedagogical_workflow.json:/home/node/workflows/rag_pedagogical_workflow.json
+      - ./mentor_test_generator_workflow.json:/home/node/workflows/mentor_test_generator_workflow.json
     environment:
       - GENERIC_TIMEZONE=America/New_York
       - TZ=America/New_York
@@ -17,6 +18,8 @@ services:
       # Giá trị lấy từ .env ở root repo (n8n-docker/.env là symlink tới ../.env)
       - BE_API_BASE_URL=${BE_API_BASE_URL:-http://host.docker.internal:3001}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
+      # RAG API (FastAPI, src/api/main.py) dùng bởi node "Test/Submission Grader Agent" (POST /api/llm)
+      - RAG_API_BASE_URL=${RAG_API_BASE_URL:-http://host.docker.internal:8080}
     entrypoint: ["/bin/sh", "-c"]
     command: "n8n start"
 

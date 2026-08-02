@@ -76,7 +76,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://host.docker.internal:8080/api/llm",
+        "url": "={{ $env.RAG_API_BASE_URL || 'http://host.docker.internal:8080' }}/api/llm",
         "sendBody": true,
         "specifyBody": "keypair",
         "options": {},
@@ -133,7 +133,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://host.docker.internal:8080/api/llm",
+        "url": "={{ $env.RAG_API_BASE_URL || 'http://host.docker.internal:8080' }}/api/llm",
         "sendBody": true,
         "specifyBody": "keypair",
         "options": {},
