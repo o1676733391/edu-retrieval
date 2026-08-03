@@ -6,80 +6,71 @@ import time
 import requests
 from pathlib import Path
 
-# Add project root to python path to ensure proper imports
-sys.path.append(str(Path(__file__).parent))
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8080").rstrip("/")
 
-from src.vector_store.client import get_vector_db_client, get_embedding_function, get_or_create_collection
-from src.vector_store.search import book_knowledge_search, multi_domain_retrieval
-from src import config
+ROLE_STUDENT = "student"
+ROLE_TEACHER = "teacher"
+ROLE_ADMIN = "admin"
+
+ROLE_VISIBILITY_MAPPING = {
+    ROLE_STUDENT: ["public"],
+    ROLE_TEACHER: ["public", "teacher_only"],
+    ROLE_ADMIN: ["public", "teacher_only", "admin_only"]
+}
 
 def get_all_tag_uuids() -> list[str]:
-    from src import config
     try:
-        if config.VECTOR_DB_BACKEND == "qdrant":
-            from qdrant_client import QdrantClient
-            if config.QDRANT_HOST:
-                client = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
-            else:
-                client = QdrantClient(path=str(config.DATA_DIR / "qdrant_db"))
-            cols = [c.name for c in client.get_collections().collections]
-        else:
-            from src.vector_store.client import get_vector_db_client
-            client = get_vector_db_client()
-            cols = [c.name for c in client.list_collections()]
-            
-        # Clean collection names to extract tag_name_uuid
-        tag_uuids = set()
-        for col in cols:
-            if col.endswith("_doc"):
-                tag_uuids.add(col[:-4])
-            elif col.endswith("_qa"):
-                tag_uuids.add(col[:-3])
-            elif col.startswith(f"{config.COLLECTION_NAME}_"):
-                tag_uuids.add(col[len(f"{config.COLLECTION_NAME}_"):])
-            else:
-                tag_uuids.add(col)
-        
-        cleaned = sorted([t for t in tag_uuids if t and t != "prompt_registry"])
-        return cleaned
-    except Exception as e:
-        print(f"[Warning] Failed to fetch tag UUIDs: {e}")
-        return ["math"]
+        res = requests.get(f"{API_BASE_URL}/api/outline", timeout=3)
+        if res.status_code == 200:
+            data = res.json()
+            outline = data.get("outline", {})
+            tags = set()
+            if isinstance(outline, dict):
+                for file_name, lessons in outline.items():
+                    for item in lessons:
+                        tag = item.get("tag_name_uuid") or item.get("file_id") or item.get("field")
+                        if tag:
+                            tags.add(tag)
+            elif isinstance(outline, list):
+                for item in outline:
+                    tag = item.get("tag_name_uuid") or item.get("file_id") or item.get("field")
+                    if tag:
+                        tags.add(tag)
+            if tags:
+                return sorted(list(tags))
+    except Exception:
+        pass
+    return ["math"]
 
 def get_all_org_ids() -> list[str]:
-    from src import config
     try:
-        tags = get_all_tag_uuids()
-        org_ids = set()
-        for tag in tags:
-            for doc_type in ["doc", "qa"]:
-                col_name = f"{tag}_{doc_type}"
-                from src.vector_store.client import get_vector_store
-                try:
-                    vs = get_vector_store(field=tag, collection_name_override=col_name)
-                    res = vs.get_all()
-                    if res and "metadatas" in res and res["metadatas"]:
-                        metadata_list = res["metadatas"]
-                        if metadata_list and isinstance(metadata_list, list):
-                            for meta in metadata_list:
-                                if isinstance(meta, list):
-                                    for m in meta:
-                                        if isinstance(m, dict) and "org_id" in m:
-                                            org_ids.add(m["org_id"])
-                                elif isinstance(meta, dict) and "org_id" in meta:
-                                    org_ids.add(meta["org_id"])
-                except Exception:
-                    pass
-        cleaned = sorted([o for o in org_ids if o])
-        if not cleaned:
-            return ["org_default"]
-        return cleaned
-    except Exception as e:
-        print(f"[Warning] Failed to fetch org IDs: {e}")
-        return ["org_default"]
+        res = requests.get(f"{API_BASE_URL}/api/outline", timeout=3)
+        if res.status_code == 200:
+            data = res.json()
+            outline = data.get("outline", {})
+            orgs = set()
+            if isinstance(outline, dict):
+                for file_name, lessons in outline.items():
+                    for item in lessons:
+                        org = item.get("org_id")
+                        if org:
+                            orgs.add(org)
+            elif isinstance(outline, list):
+                for item in outline:
+                    org = item.get("org_id")
+                    if org:
+                        orgs.add(org)
+            if orgs:
+                return sorted(list(orgs))
+    except Exception:
+        pass
+    return ["org_default"]
 
 def get_available_ocr_caches():
-    cache_files = list(config.DATA_DIR.glob("processed_*.json"))
+    data_dir = Path("data")
+    if not data_dir.exists():
+        return []
+    cache_files = list(data_dir.glob("processed_*.json"))
     options = []
     for f in cache_files:
         name = f.stem
@@ -394,18 +385,18 @@ with st.sidebar:
     st.markdown("### 🧑 User Metadata")
     user_role = st.selectbox(
         "Vai trò người dùng (Role)",
-        options=[config.ROLE_STUDENT, config.ROLE_TEACHER, config.ROLE_ADMIN],
+        options=[ROLE_STUDENT, ROLE_TEACHER, ROLE_ADMIN],
         index=0,
         format_func=lambda x: {
-            config.ROLE_STUDENT: "Học sinh (Student)",
-            config.ROLE_TEACHER: "Giáo viên (Teacher)",
-            config.ROLE_ADMIN: "Quản trị viên (Admin)"
+            ROLE_STUDENT: "Học sinh (Student)",
+            ROLE_TEACHER: "Giáo viên (Teacher)",
+            ROLE_ADMIN: "Quản trị viên (Admin)"
         }.get(x, x)
     )
     
     # Display details of the active role permissions
-    allowed_vis = config.ROLE_VISIBILITY_MAPPING.get(user_role, ["public"])
-    if user_role == config.ROLE_ADMIN:
+    allowed_vis = ROLE_VISIBILITY_MAPPING.get(user_role, ["public"])
+    if user_role == ROLE_ADMIN:
         allowed_vis_text = "Toàn bộ tài liệu (public, teacher_only, admin_only)"
     else:
         allowed_vis_text = ", ".join(allowed_vis)
@@ -449,13 +440,17 @@ with st.sidebar:
         }.get(x, x),
         help="Chọn mô-đun prompt để cấu hình phong cách trả lời của Trợ lý AI."
     )
+
+    # n8n Chatbot Webhook URL input
+    n8n_chatbot_url = st.sidebar.text_input(
+        "🔗 n8n Chatbot Webhook URL",
+        value="http://localhost:5678/webhook/rag-math-assistant",
+        help="Sử dụng url này cho chatbot để kết nối trực tiếp đến luồng n8n multi-agent."
+    )
     
     # Embeddings / OCR configuration choice
-    embed_provider = "Gemini (text-embedding-004)" if (config.GEMINI_API_KEY or config.USE_VERTEXAI) else ("OpenAI" if config.OPENAI_API_KEY else "Chưa cấu hình")
-    st.write(f"**Bộ xử lý Vector Nhúng:** {embed_provider}")
-    
-    ocr_provider = "Gemini (gemini-2.5-flash)" if (config.GEMINI_API_KEY or config.USE_VERTEXAI) else "Chưa cấu hình"
-    st.write(f"**Bộ xử lý OCR:** {ocr_provider}")
+    st.write("**Bộ xử lý Vector Nhúng:** Gemini (text-embedding-004)")
+    st.write("**Bộ xử lý OCR:** Multimodal Vision (gemini-2.5-flash)")
     
     st.markdown("---")
     st.markdown("<div style='text-align: center; opacity: 0.5; font-size: 0.8rem;'>Trợ lý Học tập SGK Toán 3<br>Phiên bản 1.0.0</div>", unsafe_allow_html=True)
@@ -485,8 +480,8 @@ tab_chatbot, tab_search, tab_upload, tab_api_retrieval, tab_preview, tab_health,
 # TAB 1: INTERACTIVE AI CHATBOT AREA
 # =====================================================================
 with tab_chatbot:
-    st.markdown("### 💬 Trợ lý Học tập AI (Chatbot)")
-    st.markdown(f"Hỏi đáp bài tập, giải thích kiến thức từng bước dựa trên tài liệu đã nạp (*Vai trò active: **{user_role.upper()}***).")
+    st.markdown("### 💬 Trợ lý Học tập AI (Chatbot - n8n Orchestrated)")
+    st.markdown(f"Hỏi đáp bài tập, giải thích kiến thức từng bước dựa trên tài liệu đã nạp qua n8n Multi-Agent (*Vai trò active: **{user_role.upper()}***).")
     
     col_chat_hdr1, col_chat_hdr2 = st.columns([4, 1])
     with col_chat_hdr2:
@@ -497,6 +492,9 @@ with tab_chatbot:
                     "content": "Xin chào! Thầy/Cô là Trợ lý Học tập AI. Em hoặc Phụ huynh có câu hỏi gì về bài học hay bài tập cần giải đáp không ạ?"
                 }
             ]
+            # Generate a brand new temporary conversation ID to reset history context on n8n side
+            import uuid
+            st.session_state.conversation_id = str(uuid.uuid4())
             st.rerun()
 
     # Initialize chat history
@@ -507,94 +505,106 @@ with tab_chatbot:
                 "content": "Xin chào! Thầy/Cô là Trợ lý Học tập AI. Em hoặc Phụ huynh có câu hỏi gì về bài học hay bài tập cần giải đáp không ạ?"
             }
         ]
+        
+    if "conversation_id" not in st.session_state:
+        import uuid
+        st.session_state.conversation_id = str(uuid.uuid4())
 
     # Display chat messages from history on app rerun
-    for message in st.session_state.messages:
+    for i, message in enumerate(st.session_state.messages):
         avatar = "🤖" if message["role"] == "assistant" else "👤"
         with st.chat_message(message["role"], avatar=avatar):
             st.markdown(message["content"])
+            
+            # If this is the last message and contains options, render interactive choice buttons
+            if message["role"] == "assistant" and "options" in message and i == len(st.session_state.messages) - 1:
+                options = message["options"]
+                orig_prompt = message["original_prompt"]
+                st.write("👉 **Vui lòng chọn 1 hướng hỗ trợ dưới đây:**")
+                cols = st.columns(len(options))
+                for opt_idx, opt in enumerate(options):
+                    with cols[opt_idx]:
+                        if st.button(opt["label"], key=f"chatbot_opt_btn_{opt_idx}"):
+                            # User selected this intent option!
+                            st.session_state.active_query = orig_prompt
+                            st.session_state.active_agent_mode = opt["intent"]
+                            
+                            # Append user choice message for visual continuity
+                            st.session_state.messages.append({
+                                "role": "user",
+                                "content": f"Yêu cầu xử lý theo hướng: **{opt['label']}**"
+                            })
+                            
+                            # Remove options list from message payload so it won't render again
+                            message.pop("options", None)
+                            st.rerun()
 
-    # React to user input
-    if prompt := st.chat_input("Nhập câu hỏi tại đây... (Ví dụ: 'Giải giúp em bài toán đố trang 15')"):
-        # Display user message in chat message container
-        st.chat_message("user", avatar="👤").markdown(prompt)
-        # Add user message to chat history
-        st.session_state.messages.append({"role": "user", "content": prompt})
+    # Determine if there's an action to trigger n8n
+    active_prompt_input = st.chat_input("Nhập câu hỏi tại đây... (Ví dụ: 'Giải giúp em bài toán đố trang 15')")
+    
+    if active_prompt_input:
+        st.session_state.active_query = active_prompt_input
+        st.session_state.active_agent_mode = agent_mode  # from sidebar
+        st.session_state.messages.append({"role": "user", "content": active_prompt_input})
+        st.rerun()
 
-        # Display assistant response in chat message container
+    # If the last message in history is from 'user', perform n8n API call
+    if st.session_state.messages[-1]["role"] == "user":
+        # Get query and override variables
+        query_to_send = st.session_state.get("active_query", st.session_state.messages[-1]["content"])
+        mode_to_send = st.session_state.get("active_agent_mode", "default")
+        
         with st.chat_message("assistant", avatar="🤖"):
-            with st.spinner("Trợ lý AI đang tra cứu sách giáo khoa và suy luận... 💭"):
+            with st.spinner("Trợ lý AI đang xử lý qua luồng n8n Multi-Agent... 💭"):
                 try:
-                    # Retrieve RAG context
-                    rag_results = multi_domain_retrieval(
-                        query=prompt,
-                        tag_name_uuids=selected_tags if selected_tags else ["math"],
-                        doc_type="doc",
-                        top_k=3
-                    )
+                    payload = {
+                        "prompt": query_to_send,
+                        "agent_mode": mode_to_send,
+                        "conversation_id": st.session_state.conversation_id,
+                        "tag_name_uuid": selected_tags if selected_tags else ["math"],
+                        "org_id": ["org_default"],
+                        "prompt_profile": "default"
+                    }
                     
-                    context_texts = []
-                    citations = []
-                    for r in rag_results:
-                        m = r["metadata"]
-                        phys_p = m.get('physical_page')
-                        pdf_p = m.get('pdf_page_index')
-                        if phys_p is not None and phys_p != -1:
-                            page_str = f"Trang {phys_p}"
-                        elif pdf_p is not None and pdf_p != -1:
-                            page_str = f"Trang PDF {pdf_p + 1}"
-                        else:
-                            page_str = "Trang chưa rõ"
-                            
-                        lesson = m.get('lesson_name', 'Chưa rõ')
-                        file_n = m.get('file_name', 'SGK Toán 3')
-                        vol = m.get('volume', '1')
-                        
-                        context_texts.append(f"--- Tài liệu: {file_n}, {page_str} ---\n{r['text']}")
-                        citations.append(f"- **Tài liệu:** {file_n} | **Bài học:** {lesson} | **Vị trí:** {page_str} (Tập {vol})")
-                        
-                    joined_context = "\n\n".join(context_texts) if context_texts else "Không tìm thấy đoạn văn bản trùng khớp."
-                    citation_block = "\n".join(citations) if citations else "- Tài liệu hệ thống"
+                    headers = {
+                        "Content-Type": "application/json"
+                    }
+                    res = requests.post(n8n_chatbot_url, json=payload, headers=headers, timeout=120)
                     
-                    # Strict Grounded RAG Check: Guardrail if no documents found
-                    # Only default and theory_explanation require RAG lookup validation
-                    needs_rag_lookup = agent_mode in ["default", "theory_explanation"]
-                    if needs_rag_lookup and (not rag_results or joined_context == "Không tìm thấy đoạn văn bản trùng khớp."):
-                        full_response = "⚠️ Rất tiếc, trong cơ sở dữ liệu SGK hiện tại không tìm thấy bài học hoặc thông tin phù hợp để trả lời câu hỏi này."
-                    elif config.GEMINI_API_KEY or config.USE_VERTEXAI:
-                        from google import genai
-                        if config.USE_VERTEXAI:
-                            ai_client = genai.Client(vertexai=True, project=config.GOOGLE_CLOUD_PROJECT, location=config.GOOGLE_CLOUD_LOCATION)
-                        else:
-                            ai_client = genai.Client(api_key=config.GEMINI_API_KEY)
+                    if res.status_code == 200:
+                        res_data = res.json()
+                        
+                        # Handle Ambiguous Intent / no_intent
+                        if res_data.get("status") == "ambiguous_intent" or res_data.get("selected_agent") == "no_intent":
+                            msg_text = res_data.get("message", "Câu hỏi chưa rõ ý định cụ thể. Vui lòng chọn hướng hỗ trợ:")
+                            options_list = res_data.get("predicted_intents", [])
                             
-                        # Build prompt template based on selected prompt module/mode
-                        if agent_mode == "barem_review":
-                            prompt_template = get_barem_review_prompt(joined_context, prompt, citation_block)
-                        elif agent_mode == "theory_explanation":
-                            prompt_template = get_theory_explanation_prompt(joined_context, prompt, citation_block)
-                        elif agent_mode == "exercise_generator":
-                            prompt_template = get_exercise_generator_prompt(joined_context, prompt, citation_block)
-                        elif agent_mode == "suggestive_tutor":
-                            prompt_template = get_suggestive_tutor_prompt(joined_context, prompt, citation_block)
-                        elif agent_mode == "direct_solver":
-                            prompt_template = get_direct_solver_prompt(joined_context, prompt, citation_block)
+                            assistant_msg = {
+                                "role": "assistant",
+                                "content": msg_text,
+                                "options": options_list,
+                                "original_prompt": query_to_send
+                            }
+                            st.session_state.messages.append(assistant_msg)
                         else:
-                            prompt_template = get_default_teacher_prompt(joined_context, prompt, citation_block)
-                        response = ai_client.models.generate_content(
-                            model="gemini-2.5-flash",
-                            contents=prompt_template
-                        )
-                        full_response = response.text
+                            output_text = res_data.get("output", "")
+                            if not output_text and "response" in res_data:
+                                output_text = res_data["response"]
+                            if not output_text:
+                                output_text = "⚠️ Không nhận được nội dung phản hồi từ luồng n8n."
+                                
+                            st.session_state.messages.append({"role": "assistant", "content": output_text})
                     else:
-                        full_response = f"Dựa trên tài liệu tra cứu được:\n\n{joined_context}\n\n---\nNguon tham khao:\n{citation_block}"
-                        
-                    st.markdown(full_response)
-                    st.session_state.messages.append({"role": "assistant", "content": full_response})
+                        error_text = f"❌ Lỗi từ n8n Webhook (Status Code: {res.status_code}): {res.text}"
+                        st.session_state.messages.append({"role": "assistant", "content": error_text})
                 except Exception as e:
-                    error_str = f"Đã xảy ra lỗi khi tạo câu trả lời: {e}"
-                    st.error(error_str)
-                    st.session_state.messages.append({"role": "assistant", "content": error_str})
+                    error_text = f"❌ Không thể kết nối tới n8n Webhook: {e}"
+                    st.session_state.messages.append({"role": "assistant", "content": error_text})
+                
+                # Cleanup active parameters and rerun to display assistant reply cleanly
+                st.session_state.pop("active_query", None)
+                st.session_state.pop("active_agent_mode", None)
+                st.rerun()
 
 # =====================================================================
 # TAB 2: RAG SEARCH EXPLORER
@@ -606,11 +616,11 @@ with tab_search:
     )
     
     # Show active user role constraints warning for clarity
-    if user_role == config.ROLE_STUDENT:
+    if user_role == ROLE_STUDENT:
         st.warning("🔒 Bạn đang đăng nhập là **Học sinh**. Bạn chỉ được phép tra cứu các bài học được đánh dấu **Công khai (public)**.")
-    elif user_role == config.ROLE_TEACHER:
+    elif user_role == ROLE_TEACHER:
         st.info("🔓 Bạn đang đăng nhập là **Giáo viên**. Bạn có quyền truy cập tài liệu **Công khai** và các tài liệu nội bộ **Giáo viên (teacher_only)**.")
-    elif user_role == config.ROLE_ADMIN:
+    elif user_role == ROLE_ADMIN:
         st.success("👑 Bạn đang đăng nhập là **Quản trị viên**. Bạn có toàn quyền truy cập tất cả các tài liệu hệ thống.")
 
     # Input field for user query
@@ -661,12 +671,18 @@ with tab_search:
         else:
             with st.spinner("Đang tìm kiếm trong cơ sở dữ liệu Vector... 💭"):
                 try:
-                    results = multi_domain_retrieval(
-                        query=user_query,
-                        tag_name_uuids=tab_selected_tags if tab_selected_tags else ["math"],
-                        doc_type=search_type,
-                        top_k=top_k
-                    )
+                    payload = {
+                        "text": user_query,
+                        "tag_name_uuids": tag_uuids_list,
+                        "type": search_type,
+                        "top_k": top_k
+                    }
+                    api_res = requests.post(f"{API_BASE_URL}/api/retrieval", json=payload, timeout=30)
+                    if api_res.status_code == 200:
+                        results = api_res.json().get("results", [])
+                    else:
+                        st.error(f"Lỗi kết nối API Backend (Status: {api_res.status_code}): {api_res.text}")
+                        results = []
                     
                     if not results:
                         st.warning("Không tìm thấy tài liệu hoặc cặp Hỏi/Đáp phù hợp.")
@@ -896,13 +912,9 @@ with tab_upload:
                         file_id_val = selected_ocr["file_id"]
                         status.write(f"Đang tải tệp OCR từ cache: `{selected_ocr['path'].name}`...")
                     
-                    # 2. Verify API Key exists if running OCR
-                    if step_ocr and not config.GEMINI_API_KEY:
-                        raise ValueError("Chưa thiết lập GEMINI_API_KEY trong tệp .env.")
-                    
                     status.write("Đang tiến hành gửi yêu cầu nạp tài liệu tới FastAPI Backend (Port 8080)...")
                     
-                    backend_ingest_url = "http://localhost:8080/api/ingestion"
+                    backend_ingest_url = f"{API_BASE_URL}/api/ingestion"
                     payload = {
                         "force": force_ocr,
                         "tag_name_uuid": field_val,
@@ -1122,55 +1134,42 @@ with tab_preview:
     # Document Manager Section
     st.markdown("#### 📁 Quản lý các tài liệu đã nạp (Document Manager)")
     try:
-        preview_client = get_vector_db_client()
-        preview_embedding_fn = get_embedding_function()
-        preview_field_val = active_field  # Default field is active_field
-        
-        # We check the input if it has been created below (since Streamlit runs top-to-bottom, we can get it from session_state)
+        preview_field_val = active_field
         if "preview_field" in st.session_state:
             preview_field_val = st.session_state.preview_field
             
-        preview_col_name = f"{config.COLLECTION_NAME}_{preview_field_val}"
-        
-        # Verify collection exists
-        preview_collections = [c.name for c in preview_client.list_collections()]
-        if preview_col_name in preview_collections:
-            preview_collection = get_or_create_collection(preview_client, preview_embedding_fn, collection_name=preview_col_name)
-            all_records = preview_collection.get(include=["metadatas"])
-            files = {}
-            if all_records and "metadatas" in all_records:
-                for idx, meta in enumerate(all_records["metadatas"]):
-                    fid = meta.get("file_id", "default_textbook")
-                    fname = meta.get("file_name") if fid != "default_textbook" else f"Sách giáo khoa Toán 3 (Tập {meta.get('volume', '1')})"
-                    if fid not in files:
-                        files[fid] = {
-                            "file_id": fid,
-                            "file_name": fname,
-                            "count": 0,
-                            "visibility": meta.get("visibility", "public")
-                        }
-                    files[fid]["count"] += 1
-            
-            if files:
-                for fid, fdetails in files.items():
+        res_outline = requests.get(f"{API_BASE_URL}/api/outline?tag_name_uuids={preview_field_val}", timeout=5)
+        if res_outline.status_code == 200:
+            outline_data = res_outline.json()
+            outline_files = outline_data.get("outline", [])
+            if outline_files:
+                for fdetails in outline_files:
                     col_doc1, col_doc2 = st.columns([4, 1])
+                    fid = fdetails.get("file_id", "default")
+                    fname = fdetails.get("file_name", "SGK Toán 3")
+                    cnt = fdetails.get("chunk_count", 0)
+                    vis = fdetails.get("visibility", "public")
+                    
                     with col_doc1:
-                        st.markdown(f"📄 **{fdetails['file_name']}** (`{fdetails['file_id']}`) - {fdetails['count']} trang, Phân quyền: `{fdetails['visibility']}`")
+                        st.markdown(f"📄 **{fname}** (`{fid}`) - {cnt} đoạn/trang, Phân quyền: `{vis}`")
                     with col_doc2:
                         if fid != "default_textbook":
                             if st.button("Xóa tài liệu", key=f"del_{fid}"):
-                                preview_collection.delete(where={"file_id": str(fid)})
-                                st.success(f"Đã xóa tài liệu '{fdetails['file_name']}'!")
-                                time.sleep(1.0)
-                                st.rerun()
+                                del_res = requests.delete(f"{API_BASE_URL}/api/documents/{fid}", timeout=10)
+                                if del_res.status_code == 200:
+                                    st.success(f"Đã xóa tài liệu '{fname}'!")
+                                    time.sleep(1.0)
+                                    st.rerun()
+                                else:
+                                    st.error(f"Lỗi khi xóa tài liệu: {del_res.text}")
                         else:
                             st.write("*(Sách cốt lõi)*")
             else:
-                st.info("Chưa có tài liệu nào được nạp.")
+                st.info("Chưa có tài liệu nào được nạp cho Tag UUID này.")
         else:
-            st.info("Chưa có collection nào hoạt động cho tài liệu / Tag UUID này.")
+            st.info("Chưa có tài liệu nào được nạp.")
     except Exception as e:
-        st.error(f"Lỗi khi tải danh sách tài liệu: {e}")
+        st.error(f"Lỗi khi tải danh sách tài liệu từ Backend: {e}")
     st.markdown("---")
     
     col_p1, col_p2, col_p3 = st.columns([1, 1, 1])
@@ -1184,73 +1183,48 @@ with tab_preview:
     with col_p2:
         preview_role = st.selectbox(
             "Xem dưới quyền vai trò (Role)",
-            options=[config.ROLE_STUDENT, config.ROLE_TEACHER, config.ROLE_ADMIN],
-            index=[config.ROLE_STUDENT, config.ROLE_TEACHER, config.ROLE_ADMIN].index(user_role),
+            options=[ROLE_STUDENT, ROLE_TEACHER, ROLE_ADMIN],
+            index=[ROLE_STUDENT, ROLE_TEACHER, ROLE_ADMIN].index(user_role),
             key="preview_role"
         )
     with col_p3:
         preview_limit = st.slider("Số lượng bản ghi tối đa", min_value=5, max_value=100, value=20, step=5)
         
-    if st.button("🔄 Tải lại dữ liệu ChromaDB"):
+    if st.button("🔄 Tải lại dữ liệu Vector DB"):
         st.toast("Đang tải dữ liệu...")
         
-    # Query ChromaDB using the preview utility logic
+    # Query Backend API /api/preview
     try:
-        client = get_vector_db_client()
-        embedding_fn = get_embedding_function()
-        col_name = f"{config.COLLECTION_NAME}_{preview_field}"
-        
-        # Verify collection exists
-        collections = [c.name for c in client.list_collections()]
-        if col_name not in collections:
-            st.info(f"ℹ️ Không tìm thấy collection: `{col_name}`. Tài liệu này có thể chưa được nạp dữ liệu.")
-        else:
-            collection = get_or_create_collection(client, embedding_fn, collection_name=col_name)
-            total_records = collection.count()
-            st.metric("Tổng số bản ghi trong collection", total_records)
+        api_preview_url = f"{API_BASE_URL}/api/preview?field={preview_field}&role={preview_role}&limit={preview_limit}"
+        res = requests.get(api_preview_url, timeout=10)
+        if res.status_code == 200:
+            preview_data = res.json()
+            records = preview_data.get("records", [])
+            st.metric("Tổng số bản ghi truy xuất", preview_data.get("total_retrieved", len(records)))
             
-            # Build metadata filters for RBAC (identical to backend `/api/preview`)
-            where_filter = {}
-            if preview_role != config.ROLE_ADMIN:
-                allowed_visibilities = config.ROLE_VISIBILITY_MAPPING.get(preview_role, ["public"])
-                if len(allowed_visibilities) == 1:
-                    where_filter = {"visibility": allowed_visibilities[0]}
-                else:
-                    where_filter = {"$or": [{"visibility": v} for v in allowed_visibilities]}
-            
-            chroma_where = where_filter if where_filter else None
-            
-            # Fetch documents
-            results = collection.get(
-                limit=preview_limit,
-                where=chroma_where,
-                include=["documents", "metadatas"]
-            )
-            
-            if not results or not results["ids"]:
+            if not records:
                 st.warning("⚠️ Không có bản ghi nào phù hợp với vai trò và bộ lọc phân quyền này.")
             else:
-                # Format records for display
-                for i, doc_id in enumerate(results["ids"]):
-                    doc_text = results["documents"][i]
-                    doc_meta = results["metadatas"][i]
+                for rec in records:
+                    doc_id = rec.get("id", "N/A")
+                    doc_text = rec.get("text", "")
+                    doc_meta = rec.get("metadata", {})
                     
                     with st.expander(f"📄 **ID: {doc_id}** | Bài: {doc_meta.get('lesson_name', 'Chưa rõ')} | Trang: {doc_meta.get('physical_page', -1)}"):
-                        # Show metadata as columns
                         meta_cols = st.columns(5)
                         meta_cols[0].write(f"**Tập sách:** {doc_meta.get('volume', 'Chưa rõ')}")
                         meta_cols[1].write(f"**Trang PDF:** {doc_meta.get('pdf_page_index', -1)}")
                         meta_cols[2].write(f"**Môn học:** {doc_meta.get('field', 'Chưa rõ')}")
                         
-                        # Style visibility
                         vis = doc_meta.get('visibility', 'public')
                         vis_color = "green" if vis == "public" else ("blue" if vis == "teacher_only" else "red")
                         meta_cols[3].markdown(f"**Quyền:** <span style='color:{vis_color}; font-weight:bold;'>{vis}</span>", unsafe_allow_html=True)
                         
-                        # Show raw text
                         st.text_area("Nội dung text đã OCR", value=doc_text, height=150, disabled=True, key=f"text_{doc_id}")
+        else:
+            st.error(f"Lỗi khi đọc dữ liệu từ API Backend (Status: {res.status_code}): {res.text}")
     except Exception as e:
-        st.error(f"Lỗi khi đọc Vector Database: {e}")
+        st.error(f"Lỗi kết nối API Backend: {e}")
 
 # =====================================================================
 # TAB 4: SYSTEM HEALTH & METRIC DIAGNOSTICS
@@ -1262,44 +1236,31 @@ with tab_health:
     
     with col_h1:
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        st.markdown("#### 1. Kết nối Cơ sở Dữ liệu (ChromaDB)")
+        st.markdown("#### 1. Trạng thái Backend API & Vector DB")
         try:
-            db_client = get_vector_db_client()
-            db_client.heartbeat()
-            st.markdown('Trạng thái: <span class="status-badge status-online">ONLINE</span>', unsafe_allow_html=True)
-            st.success("Kết nối đến ChromaDB hoạt động bình thường!")
-            
-            # List current collections
-            st.markdown("**Danh sách collections hiện tại:**")
-            collections = db_client.list_collections()
-            for col in collections:
-                st.write(f"- `{col.name}` ({col.count()} records)")
+            res_h = requests.get(f"{API_BASE_URL}/api/health", timeout=5)
+            if res_h.status_code == 200:
+                h_data = res_h.json()
+                st.markdown('Trạng thái: <span class="status-badge status-online">ONLINE</span>', unsafe_allow_html=True)
+                st.success("Kết nối đến FastAPI Backend & Vector DB hoạt động bình thường!")
+                st.write(f"- **Backend:** `{h_data.get('backend', 'N/A')}`")
+                st.write(f"- **Vector DB:** `{h_data.get('status', 'healthy')}`")
+            else:
+                st.markdown('Trạng thái: <span class="status-badge status-offline">OFFLINE</span>', unsafe_allow_html=True)
+                st.error(f"Backend API báo lỗi: {res_h.status_code}")
         except Exception as e:
             st.markdown('Trạng thái: <span class="status-badge status-offline">OFFLINE</span>', unsafe_allow_html=True)
-            st.error(f"Không thể kết nối đến cơ sở dữ liệu: {e}")
+            st.error(f"Không thể kết nối đến Backend API ({API_BASE_URL}): {e}")
         st.markdown('</div>', unsafe_allow_html=True)
         
     with col_h2:
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        st.markdown("#### 2. Cấu hình Khóa API (API Credentials)")
-        
-        # Verify API Key availability
-        has_gemini = bool(config.GEMINI_API_KEY)
-        has_openai = bool(config.OPENAI_API_KEY)
-        use_vertex = config.USE_VERTEXAI
-        
-        st.write(f"- **Môi trường Vertex AI:** {'Hoạt động' if use_vertex else 'Tắt'}")
-        if use_vertex:
-            st.write(f"  - Project ID: `{config.GOOGLE_CLOUD_PROJECT}`")
-            st.write(f"  - Location: `{config.GOOGLE_CLOUD_LOCATION}`")
-            
-        st.write(f"- **Khóa Gemini API (Local):** {'Đã cấu hình ✅' if has_gemini else 'Chưa có ❌'}")
-        st.write(f"- **Khóa OpenAI API (Local):** {'Đã cấu hình ✅' if has_openai else 'Chưa có ❌'}")
-        
-        st.markdown("#### 3. Đường dẫn Dữ liệu (System Paths)")
-        st.write(f"- Thư mục gốc: `{config.BASE_DIR}`")
-        st.write(f"- Thư mục DB: `{config.DB_DIR}`")
-        st.write(f"- Thư mục mẫu: `{config.DATA_SAMPLES_DIR}`")
+        st.markdown("#### 2. Cấu hình Kết nối Mạng")
+        st.write(f"- **FastAPI Base URL:** `{API_BASE_URL}`")
+        st.write(f"- **Chế độ chạy:** Streamlit via REST API Endpoint (Decoupled Architecture)")
+        st.markdown("#### 3. Đường dẫn Hệ thống")
+        st.write(f"- Thư mục gốc: `{Path('.').resolve()}`")
+        st.write(f"- Thư mục Dữ liệu: `{Path('data').resolve()}`")
         st.markdown('</div>', unsafe_allow_html=True)
 
 

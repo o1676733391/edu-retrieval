@@ -8,8 +8,8 @@ This document provides a step-by-step guide for configuring, authenticating, and
 
 The `data/gcp-key.json` file contains Google Cloud IAM Service Account credentials:
 
-- **Project ID:** `gemini-chatbot-436001`
-- **Service Account Email:** `vinh-freelancer@gemini-chatbot-436001.iam.gserviceaccount.com`
+- **Project ID:** `<YOUR_GCP_PROJECT_ID>`
+- **Service Account Email:** `<YOUR_SERVICE_ACCOUNT_EMAIL>`
 - **Key Type:** Service Account Private Key (`service_account`)
 - **Default Recommended Region:** `us-central1` (or `asia-southeast1`)
 
@@ -34,7 +34,7 @@ Create or update the `.env` file in the project root:
 USE_VERTEXAI=true
 
 # Google Cloud Settings
-GOOGLE_CLOUD_PROJECT=gemini-chatbot-436001
+GOOGLE_CLOUD_PROJECT=YOUR_GCP_PROJECT_ID
 GOOGLE_CLOUD_LOCATION=us-central1
 GOOGLE_APPLICATION_CREDENTIALS=data/gcp-key.json
 
@@ -55,13 +55,13 @@ from src import config
 
 # 1. Set environment variables
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(config.DATA_DIR / "gcp-key.json")
-os.environ["GOOGLE_CLOUD_PROJECT"] = "gemini-chatbot-436001"
+os.environ["GOOGLE_CLOUD_PROJECT"] = "YOUR_GCP_PROJECT_ID"
 os.environ["GOOGLE_CLOUD_LOCATION"] = "us-central1"
 
 # 2. Instantiate Client in Vertex AI Mode
 client = genai.Client(
     vertexai=True,
-    project="gemini-chatbot-436001",
+    project="YOUR_GCP_PROJECT_ID",
     location="us-central1"
 )
 ```
@@ -77,7 +77,7 @@ from google import genai
 
 client = genai.Client(
     vertexai=True,
-    project="gemini-chatbot-436001",
+    project="YOUR_GCP_PROJECT_ID",
     location="us-central1"
 )
 
@@ -104,7 +104,7 @@ from PIL import Image
 
 client = genai.Client(
     vertexai=True,
-    project="gemini-chatbot-436001",
+    project="YOUR_GCP_PROJECT_ID",
     location="us-central1"
 )
 
@@ -143,7 +143,7 @@ from google import genai
 
 client = genai.Client(
     vertexai=True,
-    project="gemini-chatbot-436001",
+    project="YOUR_GCP_PROJECT_ID",
     location="us-central1"
 )
 
@@ -177,7 +177,7 @@ services:
       - "8501:8501"
     environment:
       - USE_VERTEXAI=true
-      - GOOGLE_CLOUD_PROJECT=gemini-chatbot-436001
+      - GOOGLE_CLOUD_PROJECT=YOUR_GCP_PROJECT_ID
       - GOOGLE_CLOUD_LOCATION=us-central1
       - GOOGLE_APPLICATION_CREDENTIALS=/app/data/gcp-key.json
     volumes:
@@ -190,7 +190,7 @@ services:
 
 | Issue / Error | Root Cause | Solution |
 | :--- | :--- | :--- |
-| **`403 PermissionDenied`** | Vertex AI API not enabled | Enable **Vertex AI API** in [Google Cloud Console](https://console.cloud.google.com/apis/library/aiplatform.googleapis.com) for project `gemini-chatbot-436001`. |
+| **`403 PermissionDenied`** | Vertex AI API not enabled | Enable **Vertex AI API** in [Google Cloud Console](https://console.cloud.google.com/apis/library/aiplatform.googleapis.com) for project `YOUR_GCP_PROJECT_ID`. |
 | **`404 NotFound`** | Invalid model or region | Use region `us-central1` and valid model names (`text-embedding-004`, `gemini-2.5-flash`, `gemini-1.5-flash`). |
 | **`FileNotFoundError`** | `gcp-key.json` missing | Copy key file to `data/gcp-key.json` or verify `GOOGLE_APPLICATION_CREDENTIALS` path. |
 | **`429 Rate Limit`** | Quota limit reached | Ingestion pipeline automatically handles backoff retries. |
@@ -206,7 +206,7 @@ python -c "
 import os
 from google import genai
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'data/gcp-key.json'
-client = genai.Client(vertexai=True, project='gemini-chatbot-436001', location='us-central1')
+client = genai.Client(vertexai=True, project='YOUR_GCP_PROJECT_ID', location='us-central1')
 res = client.models.embed_content(model='text-embedding-004', contents='Hello Vertex AI')
 print('SUCCESS! Vector dimension:', len(res.embeddings[0].values))
 "
