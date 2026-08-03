@@ -34,6 +34,7 @@ n8n-docker/n8n_db_backup.sqlite
 Thumbs.db
 
 data/
+test_data/
 
 readme-api.md
 readme-api-n8n.md
