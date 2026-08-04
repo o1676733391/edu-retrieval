@@ -245,6 +245,14 @@ class HouseSearchRequest(BaseModel):
     collection_name: Optional[str] = "houses"
     top_k: Optional[int] = 5
 
+
+class HouseConsultRequest(BaseModel):
+    query: str
+    house_id: Optional[Union[str, int]] = None
+    collection_name: Optional[str] = "houses"
+    top_k: Optional[int] = 5
+    conversation_id: Optional[str] = None
+
 @app.get("/api/health")
 def health_check():
     """
@@ -357,6 +365,26 @@ def search_houses_api(req: HouseSearchRequest):
             "collection_name": req.collection_name,
             "results": formatted_results
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/houses/consult")
+@app.post("/api/real-estate/consult")
+def consult_houses_api(req: HouseConsultRequest):
+    """
+    Invokes the dedicated RealEstateConsultantAgent for residential real estate advice.
+    """
+    try:
+        from src.agents.real_estate_agent import RealEstateConsultantAgent
+        agent = RealEstateConsultantAgent(collection_name=req.collection_name or "houses")
+        result = agent.consult(
+            user_query=req.query,
+            house_id=req.house_id,
+            conversation_id=req.conversation_id,
+            top_k=req.top_k or 5
+        )
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
