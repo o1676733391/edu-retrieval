@@ -444,7 +444,7 @@ with st.sidebar:
     # n8n Chatbot Webhook URL input
     n8n_chatbot_url = st.sidebar.text_input(
         "🔗 n8n Chatbot Webhook URL",
-        value="http://localhost:5678/webhook/rag-math-assistant",
+        value="http://localhost:5678/webhook-test/rag-math-assistant",
         help="Sử dụng url này cho chatbot để kết nối trực tiếp đến luồng n8n multi-agent."
     )
     
@@ -516,6 +516,17 @@ with tab_chatbot:
         with st.chat_message(message["role"], avatar=avatar):
             st.markdown(message["content"])
             
+            # Show Input & Output JSON expander if present in assistant message
+            if message["role"] == "assistant" and ("input_json" in message or "output_json" in message):
+                with st.expander("🔍 Chi tiết Dữ liệu Input Payload & Response JSON"):
+                    col_j1, col_j2 = st.columns(2)
+                    with col_j1:
+                        st.markdown("**📥 Input Payload (Gửi đi):**")
+                        st.json(message.get("input_json", {}))
+                    with col_j2:
+                        st.markdown("**📤 Response JSON (Nhận về từ N8N):**")
+                        st.json(message.get("output_json", {}))
+
             # If this is the last message and contains options, render interactive choice buttons
             if message["role"] == "assistant" and "options" in message and i == len(st.session_state.messages) - 1:
                 options = message["options"]
@@ -572,7 +583,13 @@ with tab_chatbot:
                     res = requests.post(n8n_chatbot_url, json=payload, headers=headers, timeout=120)
                     
                     if res.status_code == 200:
-                        res_data = res.json()
+                        try:
+                            res_data = res.json()
+                        except Exception as json_err:
+                            res_data = {
+                                "output": res.text if res.text.strip() else "⚠️ Trả về 200 OK từ n8n nhưng phản hồi rỗng (Empty Response).\n\n💡 **Vui lòng kiểm tra:**\n1. Đã import workflow mới nhất vào n8n chưa.\n2. Đã bấm **Save** và bật công tắc **Active** góc trên cùng bên phải n8n chưa.",
+                                "raw_text": res.text
+                            }
                         
                         # Handle Ambiguous Intent / no_intent
                         if res_data.get("status") == "ambiguous_intent" or res_data.get("selected_agent") == "no_intent":
@@ -583,23 +600,42 @@ with tab_chatbot:
                                 "role": "assistant",
                                 "content": msg_text,
                                 "options": options_list,
-                                "original_prompt": query_to_send
+                                "original_prompt": query_to_send,
+                                "input_json": payload,
+                                "output_json": res_data
                             }
                             st.session_state.messages.append(assistant_msg)
                         else:
                             output_text = res_data.get("output", "")
                             if not output_text and "response" in res_data:
                                 output_text = res_data["response"]
+                            if not output_text and "message" in res_data:
+                                output_text = res_data["message"]
                             if not output_text:
-                                output_text = "⚠️ Không nhận được nội dung phản hồi từ luồng n8n."
+                                output_text = res_data.get("raw_text", "⚠️ Không nhận được nội dung phản hồi từ luồng n8n.")
                                 
-                            st.session_state.messages.append({"role": "assistant", "content": output_text})
+                            st.session_state.messages.append({
+                                "role": "assistant",
+                                "content": output_text,
+                                "input_json": payload,
+                                "output_json": res_data
+                            })
                     else:
-                        error_text = f"❌ Lỗi từ n8n Webhook (Status Code: {res.status_code}): {res.text}"
-                        st.session_state.messages.append({"role": "assistant", "content": error_text})
+                        error_text = f"❌ Lỗi từ n8n Webhook (Status Code: {res.status_code}): {res.text}\n\n💡 **Mẹo:**\n- Nếu workflow n8n **chưa bật Active**: Hãy mở n8n UI và gạt nút **'Active'** ở góc trên cùng bên phải.\n- Nếu đang thử nghiệm thủ công: Đổi `/webhook/` trong URL thành `/webhook-test/` và bấm nút **'Listen for test event'** trong n8n."
+                        st.session_state.messages.append({
+                            "role": "assistant",
+                            "content": error_text,
+                            "input_json": payload,
+                            "output_json": {"error": res.text, "status_code": res.status_code}
+                        })
                 except Exception as e:
                     error_text = f"❌ Không thể kết nối tới n8n Webhook: {e}"
-                    st.session_state.messages.append({"role": "assistant", "content": error_text})
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": error_text,
+                        "input_json": payload if 'payload' in locals() else {},
+                        "output_json": {"error": str(e)}
+                    })
                 
                 # Cleanup active parameters and rerun to display assistant reply cleanly
                 st.session_state.pop("active_query", None)
@@ -1410,7 +1446,7 @@ with tab_live_test:
     with col_lt_cfg1:
         n8n_url_lt = st.text_input(
             "🔗 n8n Webhook URL", 
-            value="http://localhost:5678/webhook/rag-math-assistant",
+            value="http://localhost:5678/webhook-test/rag-math-assistant",
             key="lt_n8n_url",
             help="Điền URL Webhook n8n. Nếu kiểm thử thủ công, đổi '/webhook/' thành '/webhook-test/'."
         )
@@ -1512,8 +1548,14 @@ with tab_live_test:
                             st.markdown(output_text)
                             st.markdown('</div>', unsafe_allow_html=True)
                             
-                            with st.expander("📋 Chi tiết phản hồi raw JSON"):
-                                st.json(res_data)
+                            with st.expander("📋 Chi tiết Input Payload & Output Response JSON"):
+                                col_lt_j1, col_lt_j2 = st.columns(2)
+                                with col_lt_j1:
+                                    st.markdown("**📥 Input Payload (Gửi đi):**")
+                                    st.json(payload)
+                                with col_lt_j2:
+                                    st.markdown("**📤 Response JSON (Nhận về):**")
+                                    st.json(res_data)
                         except Exception as e:
                             st.warning(f"Trả về 200 OK nhưng không thể giải mã JSON: {e}")
                             st.text_area("Raw Response Content", value=res.text, height=200)
