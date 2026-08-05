@@ -464,7 +464,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Tabs Setup ---
-tab_chatbot, tab_search, tab_upload, tab_api_retrieval, tab_preview, tab_health, tab_prompt_reg, tab_live_test, tab_mentor_test = st.tabs([
+tab_chatbot, tab_search, tab_upload, tab_api_retrieval, tab_preview, tab_health, tab_prompt_reg, tab_live_test, tab_mentor_test, tab_llm_proxy = st.tabs([
     "💬 Trợ lý AI Chatbot",
     "🔍 Tra cứu RAG & Multi-Domain",
     "📤 Nạp tài liệu & OCR (Upload)",
@@ -473,7 +473,8 @@ tab_chatbot, tab_search, tab_upload, tab_api_retrieval, tab_preview, tab_health,
     "🏥 Trạng thái Hệ thống (Health)",
     "⚙️ Quản lý Prompts (Registry)",
     "🧪 Live Testing (n8n Webhook)",
-    "📝 Thiết kế đề thi (Mentor)"
+    "📝 Thiết kế đề thi (Mentor)",
+    "🤖 Thử nghiệm LLM Proxy"
 ])
 
 # =====================================================================
@@ -518,6 +519,12 @@ with tab_chatbot:
             
             # Show Input & Output JSON expander if present in assistant message
             if message["role"] == "assistant" and ("input_json" in message or "output_json" in message):
+                output_json = message.get("output_json", {})
+                if "usage" in output_json:
+                    usage = output_json["usage"]
+                    cost_str = f"${usage.get('cost', 0):.6f}"
+                    st.caption(f"**⚡ Chi phí AI (LLM):** {cost_str}  |  **Tokens:** {usage.get('total_tokens', 0)} ({usage.get('input_tokens', 0)} in / {usage.get('output_tokens', 0)} out)")
+                    
                 with st.expander("🔍 Chi tiết Dữ liệu Input Payload & Response JSON"):
                     col_j1, col_j2 = st.columns(2)
                     with col_j1:
@@ -574,7 +581,8 @@ with tab_chatbot:
                         "conversation_id": st.session_state.conversation_id,
                         "tag_name_uuid": selected_tags if selected_tags else ["math"],
                         "org_id": ["org_default"],
-                        "prompt_profile": "default"
+                        "prompt_profile": "default",
+                        "user_id": "1"
                     }
                     
                     headers = {
@@ -1924,4 +1932,68 @@ Lời giải:
                             st.text_area("Chi tiết phản hồi lỗi raw", value=res.text, height=150)
                     except Exception as e:
                         st.error(f"❌ Lỗi kết nối tới n8n Webhook: {e}")
+
+
+
+
+# =====================================================================
+# TAB 10: LLM Proxy Tester
+# =====================================================================
+with tab_llm_proxy:
+    st.markdown("### 🤖 Thử nghiệm LLM Proxy (Multi-Provider Router)")
+    st.markdown("Kiểm tra trực tiếp endpoint `/api/llm` để đảm bảo hệ thống có thể kết nối với các provider khác nhau (Gemini, OpenAI, Claude) và đo lường được chi phí (Token Tracking).")
+    
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        llm_provider = st.selectbox("Chọn LLM Provider", options=["gemini", "openai", "claude"], index=0)
+        llm_user_id = st.text_input("Mã người dùng (User ID)", value="test_student_123")
+        llm_sys_instruct = st.text_area("System Instruction (Tùy chọn)", value="Bạn là một giáo viên tận tụy. Hãy trả lời ngắn gọn.", height=100)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    with col2:
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        llm_prompt = st.text_area("Nhập Prompt (Câu hỏi của người dùng)", value="Chào cô giáo, cô có thể hướng dẫn em giải bài 1 trang 15 không ạ?", height=200)
+        submit_llm = st.button("🚀 Gửi qua LLM Proxy", use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    if submit_llm:
+        if not llm_prompt.strip():
+            st.error("Vui lòng nhập Prompt!")
+        else:
+            with st.spinner(f"Đang gọi mô hình ngôn ngữ lớn qua provider: **{llm_provider.upper()}**..."):
+                payload = {
+                    "prompt": llm_prompt,
+                    "system_instruction": llm_sys_instruct if llm_sys_instruct.strip() else None,
+                    "user_id": llm_user_id,
+                    "provider": llm_provider
+                }
+                try:
+                    res = requests.post(f"{API_BASE_URL}/api/llm", json=payload, timeout=30)
+                    if res.status_code == 200:
+                        data = res.json()
+                        st.success("✅ Yêu cầu thành công!")
+                        
+                        st.markdown("### 📝 Kết quả (Generated Text)")
+                        st.info(data.get("text", ""))
+                        
+                        if "usage" in data:
+                            usage = data["usage"]
+                            st.markdown("### 📊 Thông kê Token & Chi phí (AI Usage Tracking)")
+                            col_t1, col_t2, col_t3, col_t4 = st.columns(4)
+                            col_t1.metric("Tổng Tokens", usage.get("total_tokens", 0))
+                            col_t2.metric("Input Tokens", usage.get("input_tokens", 0))
+                            col_t3.metric("Output Tokens", usage.get("output_tokens", 0))
+                            
+                            # Format cost as currency $
+                            cost_val = usage.get("cost", 0)
+                            cost_str = f"${cost_val:.6f}"
+                            col_t4.metric("Chi phí ước tính", cost_str)
+                            
+                            st.markdown(f"*(Webhook usage tracking đã được gửi ngầm tới BE với User ID: `{usage.get('user_id')}` trong {usage.get('duration_ms')} ms)*")
+                    else:
+                        st.error(f"❌ Lỗi HTTP {res.status_code}: {res.text}")
+                except Exception as e:
+                    st.error(f"❌ Lỗi kết nối: {e}")
 

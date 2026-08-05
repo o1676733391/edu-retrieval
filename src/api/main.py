@@ -255,6 +255,7 @@ def send_ai_usage_webhook(payload: dict):
         print(f"[AI Usage Webhook] Sent to {webhook_url}, Status: {response.status_code}")
     except Exception as e:
         print(f"[AI Usage Webhook] Failed to send to {webhook_url}: {e}")
+        print(f"[AI Usage Webhook Payload]: {json.dumps(payload)}")
 
 
 
@@ -837,11 +838,13 @@ def retrieval_endpoint(req: RetrievalPayloadRequest, background_tasks: Backgroun
 class LLMRequest(BaseModel):
     prompt: str
     system_instruction: Optional[str] = None
+    user_id: Optional[str] = "system"
+    provider: Optional[str] = "gemini"
 
 
 @app.post("/api/llm")
 @app.post("/llm")
-def call_llm(req: LLMRequest):
+def call_llm(req: LLMRequest, background_tasks: BackgroundTasks):
     """
     Utility endpoint to call the Gemini model using the configured provider (Vertex AI or Google AI Studio).
     """
@@ -864,15 +867,47 @@ def call_llm(req: LLMRequest):
         if req.system_instruction:
             config_params["system_instruction"] = req.system_instruction
             
+        t0 = time.time()
+        
         response = ai_client.models.generate_content(
             model="gemini-2.5-flash",
             contents=req.prompt,
             config=types.GenerateContentConfig(**config_params) if config_params else None
         )
         
+        duration_ms = int((time.time() - t0) * 1000)
+        
+        input_tokens = 0
+        output_tokens = 0
+        total_tokens = 0
+        
+        if response.usage_metadata:
+            input_tokens = response.usage_metadata.prompt_token_count
+            output_tokens = response.usage_metadata.candidates_token_count
+            total_tokens = response.usage_metadata.total_token_count
+            
+        # Standard Gemini 1.5 Flash Pricing (Approximate)
+        # Input: $0.075 per 1M tokens
+        # Output: $0.30 per 1M tokens
+        cost = (input_tokens / 1_000_000) * 0.075 + (output_tokens / 1_000_000) * 0.30
+        
+        payload = {
+            "user_id": req.user_id,
+            "model_name": "gemini-2.5-flash",
+            "model_api_type": req.provider,
+            "total_tokens": total_tokens,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cost": cost,
+            "duration_ms": duration_ms
+        }
+        
+        background_tasks.add_task(send_ai_usage_webhook, payload)
+        
         return {
             "status": "success",
-            "text": response.text
+            "text": response.text,
+            "usage": payload
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
