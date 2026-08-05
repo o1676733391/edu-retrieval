@@ -61,7 +61,6 @@ class GeminiEmbeddingFunction(EmbeddingFunction):
         return embeddings
 
 
-
 class OpenAIEmbeddingFunction(EmbeddingFunction):
     def __init__(self, api_key: str, model_name: str = "text-embedding-3-small"):
         from openai import OpenAI

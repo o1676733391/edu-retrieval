@@ -33,6 +33,7 @@ n8n-docker/n8n_db_backup.sqlite
 .DS_Store
 Thumbs.db
 
+data-samples
 data/
 test_data/
 

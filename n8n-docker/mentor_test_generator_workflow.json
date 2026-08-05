@@ -89,6 +89,10 @@
             {
               "name": "system_instruction",
               "value": "={{ $json.system_instruction }}"
+            },
+            {
+              "name": "user_id",
+              "value": "={{ $('Webhook').first().json.body.user_id || 'system' }}"
             }
           ]
         }
@@ -146,6 +150,10 @@
             {
               "name": "system_instruction",
               "value": "={{ $json.system_instruction }}"
+            },
+            {
+              "name": "user_id",
+              "value": "={{ $('Webhook').first().json.body.user_id || 'system' }}"
             }
           ]
         }

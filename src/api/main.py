@@ -3,7 +3,8 @@ import logging
 import os
 import requests
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, Request
+import time
+from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -184,6 +185,7 @@ class IngestRequest(BaseModel):
 
 class CreateDomainRequest(BaseModel):
     domain_name: str
+    user_id: Optional[str] = "system"
 
 
 class IngestionPayloadRequest(BaseModel):
@@ -211,6 +213,7 @@ class RetrievalPayloadRequest(BaseModel):
     to_date: Optional[str] = None
     top_k: Optional[int] = 5
     org_ids: Optional[Union[List[str], str]] = None
+    user_id: Optional[str] = "system"
 
 
 class OutlinePayloadRequest(BaseModel):
@@ -244,6 +247,16 @@ class HouseSearchRequest(BaseModel):
     query: str
     collection_name: Optional[str] = "houses"
     top_k: Optional[int] = 5
+
+def send_ai_usage_webhook(payload: dict):
+    webhook_url = f"{config.BE_API_BASE_URL}/webhooks/ai-usage"
+    try:
+        response = requests.post(webhook_url, json=payload, timeout=5.0)
+        print(f"[AI Usage Webhook] Sent to {webhook_url}, Status: {response.status_code}")
+    except Exception as e:
+        print(f"[AI Usage Webhook] Failed to send to {webhook_url}: {e}")
+        print(f"[AI Usage Webhook Payload]: {json.dumps(payload)}")
+
 
 
 class HouseConsultRequest(BaseModel):
@@ -586,12 +599,13 @@ def delete_document(file_id: str, field: str = "math"):
 
 @app.post("/api/create-domain")
 @app.post("/create-domain")
-def create_domain_endpoint(req: CreateDomainRequest):
+def create_domain_endpoint(req: CreateDomainRequest, background_tasks: BackgroundTasks):
     """
     Creates two database collections ({domain_name}_doc and {domain_name}_qa)
     after verifying they do not already exist.
     """
     try:
+        start_time = time.time()
         clean_name = req.domain_name.strip().lower()
         if not clean_name:
             raise HTTPException(status_code=400, detail="domain_name cannot be empty")
@@ -602,6 +616,8 @@ def create_domain_endpoint(req: CreateDomainRequest):
         created = []
         already_existed = []
         
+        embedding_fn = get_embedding_function()
+        
         if config.VECTOR_DB_BACKEND == "qdrant":
             from qdrant_client import QdrantClient
             from qdrant_client.http import models
@@ -611,7 +627,6 @@ def create_domain_endpoint(req: CreateDomainRequest):
                 client = QdrantClient(path=str(config.DATA_DIR / "qdrant_db"))
                 
             existing_cols = [c.name for c in client.get_collections().collections]
-            embedding_fn = get_embedding_function()
             dummy_emb = embedding_fn(["dummy"])[0]
             vector_size = len(dummy_emb)
             
@@ -626,7 +641,6 @@ def create_domain_endpoint(req: CreateDomainRequest):
                     created.append(col_name)
         else:
             client = get_vector_db_client()
-            embedding_fn = get_embedding_function()
             existing_cols = [c.name for c in client.list_collections()]
             
             for col_name in [doc_col_name, qa_col_name]:
@@ -636,6 +650,22 @@ def create_domain_endpoint(req: CreateDomainRequest):
                     get_or_create_collection(client, embedding_fn, collection_name=col_name)
                     created.append(col_name)
                 
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        model_api_type = "vertex" if config.USE_VERTEXAI else "openai" if config.OPENAI_API_KEY else "gemini"
+        
+        payload = {
+            "user_id": req.user_id,
+            "model_name": getattr(embedding_fn, "model_name", "unknown"),
+            "model_api_type": model_api_type,
+            "total_tokens": 1,
+            "input_tokens": 1,
+            "output_tokens": 0,
+            "cost": 0,
+            "duration_ms": duration_ms
+        }
+        background_tasks.add_task(send_ai_usage_webhook, payload)
+        
         return {
             "status": "success",
             "domain_name": clean_name,
@@ -689,12 +719,13 @@ def ingestion_endpoint(req: IngestionPayloadRequest):
 
 @app.post("/api/retrieval")
 @app.post("/retrieval")
-def retrieval_endpoint(req: RetrievalPayloadRequest):
+def retrieval_endpoint(req: RetrievalPayloadRequest, background_tasks: BackgroundTasks):
     """
     Retrieves vector search results across multiple tag/domain collections
     with type targeting (doc | qa) and date-range filtering (from_date -> to_date).
     """
     try:
+        start_time = time.time()
         tag_uuids = req.tag_name_uuids
         if isinstance(tag_uuids, str):
             v_stripped = tag_uuids.strip()
@@ -773,6 +804,25 @@ def retrieval_endpoint(req: RetrievalPayloadRequest):
             top_k=req.top_k or 5,
             org_ids=org_ids
         )
+        
+        duration_ms = int((time.time() - start_time) * 1000)
+        embedding_fn = get_embedding_function()
+        model_api_type = "vertex" if config.USE_VERTEXAI else "openai" if config.OPENAI_API_KEY else "gemini"
+        # Rough heuristic for token calculation
+        estimated_input_tokens = max(1, len(req.text) // 4)
+        
+        payload = {
+            "user_id": req.user_id,
+            "model_name": getattr(embedding_fn, "model_name", "unknown"),
+            "model_api_type": model_api_type,
+            "total_tokens": estimated_input_tokens,
+            "input_tokens": estimated_input_tokens,
+            "output_tokens": 0,
+            "cost": 0,
+            "duration_ms": duration_ms
+        }
+        background_tasks.add_task(send_ai_usage_webhook, payload)
+        
         return {
             "text": req.text,
             "tag_name_uuids": tag_uuids,
@@ -788,11 +838,13 @@ def retrieval_endpoint(req: RetrievalPayloadRequest):
 class LLMRequest(BaseModel):
     prompt: str
     system_instruction: Optional[str] = None
+    user_id: Optional[str] = "system"
+    provider: Optional[str] = "gemini"
 
 
 @app.post("/api/llm")
 @app.post("/llm")
-def call_llm(req: LLMRequest):
+def call_llm(req: LLMRequest, background_tasks: BackgroundTasks):
     """
     Utility endpoint to call the Gemini model using the configured provider (Vertex AI or Google AI Studio).
     """
@@ -815,15 +867,47 @@ def call_llm(req: LLMRequest):
         if req.system_instruction:
             config_params["system_instruction"] = req.system_instruction
             
+        t0 = time.time()
+        
         response = ai_client.models.generate_content(
             model="gemini-2.5-flash",
             contents=req.prompt,
             config=types.GenerateContentConfig(**config_params) if config_params else None
         )
         
+        duration_ms = int((time.time() - t0) * 1000)
+        
+        input_tokens = 0
+        output_tokens = 0
+        total_tokens = 0
+        
+        if response.usage_metadata:
+            input_tokens = response.usage_metadata.prompt_token_count
+            output_tokens = response.usage_metadata.candidates_token_count
+            total_tokens = response.usage_metadata.total_token_count
+            
+        # Standard Gemini 1.5 Flash Pricing (Approximate)
+        # Input: $0.075 per 1M tokens
+        # Output: $0.30 per 1M tokens
+        cost = (input_tokens / 1_000_000) * 0.075 + (output_tokens / 1_000_000) * 0.30
+        
+        payload = {
+            "user_id": req.user_id,
+            "model_name": "gemini-2.5-flash",
+            "model_api_type": req.provider,
+            "total_tokens": total_tokens,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cost": cost,
+            "duration_ms": duration_ms
+        }
+        
+        background_tasks.add_task(send_ai_usage_webhook, payload)
+        
         return {
             "status": "success",
-            "text": response.text
+            "text": response.text,
+            "usage": payload
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
