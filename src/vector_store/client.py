@@ -61,6 +61,21 @@ class GeminiEmbeddingFunction(EmbeddingFunction):
         return embeddings
 
 
+class LocalEmbeddingFunction(EmbeddingFunction):
+    def __init__(self, model_name: str = "keepitreal/vietnamese-sbert"):
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError:
+            raise ImportError("Please install sentence-transformers: pip install sentence-transformers")
+        
+        print(f"[LocalEmbedding] Loading local model '{model_name}'...")
+        self.model = SentenceTransformer(model_name)
+        self.model_name = model_name
+
+    def __call__(self, input: Documents) -> Embeddings:
+        # SentenceTransformers encode returns a numpy array, convert to list of floats
+        embeddings_numpy = self.model.encode(input, show_progress_bar=False)
+        return embeddings_numpy.tolist()
 
 class OpenAIEmbeddingFunction(EmbeddingFunction):
     def __init__(self, api_key: str, model_name: str = "text-embedding-3-small"):
@@ -85,7 +100,10 @@ def get_embedding_function(task_type: str = "RETRIEVAL_DOCUMENT") -> EmbeddingFu
     Returns the appropriate embedding function based on available API keys.
     task_type: "RETRIEVAL_DOCUMENT" for indexing, "RETRIEVAL_QUERY" for search queries.
     """
-    if config.GEMINI_API_KEY or config.USE_VERTEXAI:
+    if config.USE_LOCAL_EMBEDDING:
+        print(f"Using Local Embedding Model: {config.LOCAL_EMBEDDING_MODEL_NAME} ({task_type}).")
+        return LocalEmbeddingFunction(model_name=config.LOCAL_EMBEDDING_MODEL_NAME)
+    elif config.GEMINI_API_KEY or config.USE_VERTEXAI:
         print(f"Using Gemini API for embeddings ({task_type}).")
         model = config.EMBEDDING_MODEL_NAME
         # Ensure the model name starts with models/ ONLY if NOT using Vertex AI
@@ -102,7 +120,7 @@ def get_embedding_function(task_type: str = "RETRIEVAL_DOCUMENT") -> EmbeddingFu
         return OpenAIEmbeddingFunction(api_key=config.OPENAI_API_KEY)
     else:
         # Fallback/Error: We require an API key for vector search embeddings
-        raise ValueError("Error: Neither GEMINI_API_KEY nor OPENAI_API_KEY nor Vertex AI is configured in your environment.")
+        raise ValueError("Error: USE_LOCAL_EMBEDDING is false, and neither GEMINI_API_KEY nor OPENAI_API_KEY nor Vertex AI is configured in your environment.")
 
 def get_vector_db_client():
     """

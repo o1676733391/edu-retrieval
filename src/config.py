@@ -29,6 +29,9 @@ QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 # Model configs
 EMBEDDING_MODEL_NAME = "text-embedding-004"  # Default Gemini/Vertex AI embedding model
 
+# Local Embedding configs
+USE_LOCAL_EMBEDDING = os.getenv("USE_LOCAL_EMBEDDING", "false").lower() == "true"
+LOCAL_EMBEDDING_MODEL_NAME = os.getenv("LOCAL_EMBEDDING_MODEL_NAME", "keepitreal/vietnamese-sbert")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")

@@ -1,0 +1,1610 @@
+[
+  {
+    "id": 120,
+    "latitude": 21.0262529322,
+    "longitude": 105.8949315548,
+    "placeName": "Chung cư\nNorthern Diamond",
+    "streetName": "Đường Đàm Quang Trung",
+    "area": 95,
+    "actualArea": 95,
+    "floors": 4,
+    "wide": 5,
+    "depth": 19,
+    "offeringPrice": 7.5,
+    "bedrooms": 3,
+    "bathrooms": 2,
+    "hasCarParking": true,
+    "media": [
+      {
+        "fileName": "4EF564FD-B99C-41A4-9E42-293551AF0F0B.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "AC9B1874-310E-43C4-8B3E-80D3DC5E36EF.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3ADAE7E7-8E05-482D-8182-E70C673A0366.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "0FEB1599-6C8F-44DB-8C3C-6436466A508A.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "2941B62E-801E-4DE4-9299-87F0EB082B95.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "79D7A112-12E9-412C-B523-7EEB37DD499D.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3A359079-6F6F-4A7E-A60C-CB3462D7FA4F.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "2252B2E7-EDD3-476F-B952-E8CEC90D9D15.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "FE76188F-064C-4D58-AD4E-51609A52A358.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "48E19EAC-A498-4A09-B883-54A2CE0EA0EE.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "E96140AD-5B9E-49AF-AE80-227D73F1AF84.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "9138CE09-3111-4470-96E7-AEB877A448F8.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "001DA15D-987D-4859-9A87-0F0AEDD9D216.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "F9F1485E-2445-459F-B311-65A6854BFE39.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1E4F140A-DB93-42EC-8294-43D1AF082099.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "F1DC767E-86A3-41AC-AAB0-A5401A19745D.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "6567C011-BF30-4D91-8F1E-5B27CEE9E47C.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "E1BDFB08-9A90-412E-BFBA-C321E807A44D.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "EC445825-2E97-432C-B297-70C56B8C94CA.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "4F9167C0-D4CA-4CF5-85D1-B614D5FCA5C9.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "B54B8BEA-155A-451E-B368-94099D8FB176.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "56E7314C-4351-42BA-8AA1-196A6AA0BE4C.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 103,
+    "latitude": 21.0162049017,
+    "longitude": 105.9052383673,
+    "placeName": "60 Ng. 999 Đ. Bát Khối, Đông Dư Hạ, Bát Tràng, Hà Nội 12400, Việt Nam",
+    "streetName": "Đường Bát Khối",
+    "area": 40,
+    "actualArea": 45,
+    "floors": 6,
+    "wide": 5,
+    "depth": 10,
+    "offeringPrice": 11.5,
+    "bedrooms": 5,
+    "bathrooms": 1,
+    "hasCarParking": true,
+    "media": [
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_176_5.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_211_6.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_260_7.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_1114_27.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_298_8.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_344_9.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_378_10.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_421_11.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_458_12.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_495_13.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_548_14.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_588_15.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_637_16.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_676_17.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_715_18.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_775_19.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_830_20.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_878_21.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_919_22.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_960_23.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3j8a-F50824E6-mjr16jlo_993_24.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 119,
+    "latitude": 21.0439046,
+    "longitude": 105.8666475,
+    "placeName": "24 Đường Ngọc Lâm",
+    "streetName": "Đường Ngọc Lâm",
+    "area": 61,
+    "actualArea": 61,
+    "floors": 3,
+    "wide": 3,
+    "depth": 12,
+    "offeringPrice": 12.6,
+    "bedrooms": 3,
+    "bathrooms": 2,
+    "hasCarParking": null,
+    "media": [
+      {
+        "fileName": "CFE5206E-C0E0-4EBB-ADAA-0F7665FFE8EA.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "FDD8ECCC-1823-4BA0-A633-17085D516BD4.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "B31CFCBA-583E-46F9-BBD7-43442AC73A14.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "2461F476-7B07-484E-97C0-F4D20D80F198.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "99401900-FE13-4807-9022-35BA3475FC36.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "008CE15E-83B8-47A8-958B-E9A073D4C5ED.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "53956F4D-FC7B-4827-8B4B-3D73FE6967F1.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "C0433ED8-401B-4F19-A3BC-503F9F5009A2.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "A5394DA8-CBEC-42A4-961F-1350EF5DA80D.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "9CEBBFFA-3BDA-4F93-86D2-1425020D859E.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1F96DE38-77D1-4634-A28D-93433A082BA3.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "F50B4CED-CD8E-47C6-AEFF-D4254CFD40AC.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 101,
+    "latitude": 21.0067012171,
+    "longitude": 105.9064405784,
+    "placeName": "Tự Do 2, Tự Do2/30 2, Tổ 3, Long Biên, Hà Nội, Việt Nam",
+    "streetName": "Ngõ Tự Do 2",
+    "area": 34.8,
+    "actualArea": 34.8,
+    "floors": 4,
+    "wide": 3.5,
+    "depth": 10,
+    "offeringPrice": 5.8,
+    "bedrooms": 3,
+    "bathrooms": 3,
+    "hasCarParking": null,
+    "media": [
+      {
+        "fileName": "1000024401.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024418.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024419.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024430.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024420.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024400.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024402.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024403.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024404.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024405.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024406.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024407.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024409.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024408.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024415.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024416.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024414.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024417.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024413.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024412.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000024411.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 102,
+    "latitude": 21.0476958089,
+    "longitude": 105.8790884167,
+    "placeName": "427duong Đ. Nguyễn Văn Cừ, Ngọc Lâm, Bồ Đề, Hà Nội, Việt Nam",
+    "streetName": "Đường Nguyễn Văn Cừ",
+    "area": 13,
+    "actualArea": 13,
+    "floors": 1,
+    "wide": 4.3,
+    "depth": 3,
+    "offeringPrice": 3.45,
+    "bedrooms": 1,
+    "bathrooms": 1,
+    "hasCarParking": true,
+    "media": [
+      {
+        "fileName": "C514E94E-829B-4E80-BB8D-A7703E8EFE60.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "CCE6D8F8-9323-414F-A81B-B90E08B76AE3.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "0D08411D-909E-4A1B-9677-5215AF624817.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "80422319-08ED-4980-8BD9-62BF49DA1FD9.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "D9358AEF-454A-436D-9612-C2CD85FD7007.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1B2ABEB2-B273-4655-97B8-E3C2E635D9D9.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "DBA8966F-800E-48C4-A582-3C40F86D69A5.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "A8E97E6B-2E27-426E-AB9B-A6975493F441.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 109,
+    "latitude": 21.058147165,
+    "longitude": 105.9009474143,
+    "placeName": "3W52+69V, Kim Quan, Việt Hưng, Hà Nội, Việt Nam",
+    "streetName": "Đường Kim Quan Thượng",
+    "area": 70,
+    "actualArea": 70,
+    "floors": null,
+    "wide": 9.5,
+    "depth": 7.4,
+    "offeringPrice": 8.4,
+    "bedrooms": 2,
+    "bathrooms": 1,
+    "hasCarParking": null,
+    "media": [
+      {
+        "fileName": "C4F0E95D-761F-4549-B1C5-8D59A6896B61.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "D6B4A8DA-175D-4C35-98DD-411577F5CC9C.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "BAB5E23A-0FE2-475A-8416-44C472097D9D.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "913BBA7E-F51C-43E3-99A3-18E34626A60E.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "5EEB6B67-E2D6-4526-BB27-2F55C170317A.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "36A9378D-5574-44CD-864C-D2A4DFCB4BEF.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "176FF678-2BEC-45FC-A35C-2725F2D84736.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "2641C9CE-90C3-41AC-9281-29D502790623.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "FC2A8FF9-D8C7-4A4C-A5EA-7E0DD0F5A82E.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "5D25D68E-F4A7-4AC4-920A-8DC9F5399F2B.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "DC2700A7-522B-4A8E-8625-E90E66420F76.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "0ED816B6-BD9F-49CD-8EA0-D66A58B7E9CE.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "4D840FEB-5DCF-4276-90E8-85BB457F4472.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "C20BE751-7F4C-4EBD-A077-E4F23043B625.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "C7DDF478-DE06-414A-81F4-285493A9278C.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "2C9C525D-38C7-4207-BC16-956DAE14F964.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "FD050A1A-18DB-413F-8E94-E859FAE1145F.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1689740D-A9E1-46F9-87F0-6AC5496D91B0.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 106,
+    "latitude": 21.0591017744,
+    "longitude": 105.8623386919,
+    "placeName": "Ngọc Thuỵ/83A Ngõ 293, Tổ 10, Bồ Đề, Hà Nội, Việt Nam",
+    "streetName": "Đường Ngọc Thụy",
+    "area": 43,
+    "actualArea": 43,
+    "floors": null,
+    "wide": 4.2,
+    "depth": 11,
+    "offeringPrice": 5.9,
+    "bedrooms": 1,
+    "bathrooms": 1,
+    "hasCarParking": null,
+    "media": [
+      {
+        "fileName": "EB5EC73C-EBB9-473E-A87B-DE84B2810C05.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "63D06D46-2E4F-4832-95D7-26933BF5D462.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "A576486C-90D8-465F-BFA5-69AAA940B479.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "06A117E8-453B-4050-AFD2-A049D7EB26ED.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "D747A88E-B225-4ABF-A0E5-559A18958C51.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "8AABB77D-81F2-4633-BCB1-E7E40DE8A4B2.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "D353616A-EA03-4F8F-84B6-F256834F45D4.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "4AB011CE-37D6-40FA-B7B1-D9FE197634AE.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "ACE9C656-6240-4C06-8894-8397F8101B0E.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "5211FA65-4AA5-4186-8144-62605323D48F.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 112,
+    "latitude": 21.0251780274,
+    "longitude": 105.8976124885,
+    "placeName": "",
+    "streetName": "Đường Đàm Quang Trung",
+    "area": 100,
+    "actualArea": 100,
+    "floors": null,
+    "wide": 9,
+    "depth": 11,
+    "offeringPrice": 12.5,
+    "bedrooms": null,
+    "bathrooms": null,
+    "hasCarParking": null,
+    "media": [
+      {
+        "fileName": "1000007490.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000007579.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000007577.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000007578.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000007565.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000007493.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000007489.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000007488.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 121,
+    "latitude": 21.0101441,
+    "longitude": 105.9051857,
+    "placeName": "605 Đường Bát Khối",
+    "streetName": "Đường Bát Khối",
+    "area": 39,
+    "actualArea": 40,
+    "floors": 4,
+    "wide": 3.3,
+    "depth": 14,
+    "offeringPrice": 7.35,
+    "bedrooms": 4,
+    "bathrooms": 1,
+    "hasCarParking": null,
+    "media": [
+      {
+        "fileName": "1000014376.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000015836.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000015842.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000015838.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000015837.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000015839.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000015834.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000015835.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 122,
+    "latitude": 21.0160237405,
+    "longitude": 105.9067520499,
+    "placeName": "531 Đ. Bát Khối, Tổ 8, Long Biên, Hà Nội, Việt Nam",
+    "streetName": "Đường Bát Khối",
+    "area": 45.8,
+    "actualArea": 45.8,
+    "floors": 5,
+    "wide": 3.6,
+    "depth": 12.9,
+    "offeringPrice": 9.6,
+    "bedrooms": 4,
+    "bathrooms": 3,
+    "hasCarParking": null,
+    "media": [
+      {
+        "fileName": "1000193460.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193465.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193446.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193466.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193467.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193469.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193471.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193472.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193470.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193473.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193474.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193476.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193477.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193480.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193468.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193458.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193459.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193456.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193455.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193452.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193451.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000193453.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 100,
+    "latitude": 21.0359694665,
+    "longitude": 105.8773805201,
+    "placeName": "4 Ng. 219/27 P. Bồ Đề, Lâm Du, Bồ Đề, Hà Nội, Việt Nam",
+    "streetName": "Phố Bồ Đề",
+    "area": 81,
+    "actualArea": 81,
+    "floors": 3,
+    "wide": 6.9,
+    "depth": 13.5,
+    "offeringPrice": 17,
+    "bedrooms": 4,
+    "bathrooms": 3,
+    "hasCarParking": null,
+    "media": [
+      {
+        "fileName": "D231DDD4-A2D9-41AD-95E3-07031F362DBA.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "4C8331C8-899D-4202-A17F-3F027B4304C2.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "F0B8DFBA-1874-4644-BA1D-2BC966D59099.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "7DB95F9B-F558-4F18-8F2E-28FEE15AB59C.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "119B7B40-7D8C-42CB-BE8A-41E9AE1512C6.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "272419D0-5E82-4BD7-83DE-675132D24DFE.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3AE09382-8F16-42F0-8E77-6E42033A3C85.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "DE6EC196-F97D-44EF-AA3D-307B7ED44212.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 104,
+    "latitude": 21.0314951014,
+    "longitude": 105.8721706644,
+    "placeName": "10 Ng. 242 P. Phú Viên, Bồ Đề, Hà Nội, Việt Nam",
+    "streetName": "Phố Phú Viên",
+    "area": 38,
+    "actualArea": 38,
+    "floors": 4,
+    "wide": 7,
+    "depth": 5.7,
+    "offeringPrice": 7.5,
+    "bedrooms": 3,
+    "bathrooms": 3,
+    "hasCarParking": null,
+    "media": [
+      {
+        "fileName": "A6D098E8-13A4-4A5F-87DC-A1E21A40ACD6.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3111AD44-B4E5-4EA2-9E02-4F2DBE6644F0.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "9FCD4C1B-D8DE-4BC7-A20A-E8F6EEC81F4D.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "7CC1FF73-7BCF-4DAF-87F3-317390CCDE81.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1E46DDE4-8D17-4762-B89A-15FB8BAB701B.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "9479C330-BE36-4A58-9D5F-11513DB5EA74.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "10550B3D-2931-45A8-8022-977FB7EAF89D.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "781FCB43-98B9-4C33-AFA8-B03166AC8042.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "0543AE7F-4CF4-4BA3-99DF-5781DD5F30BA.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "5D36ACC6-E790-483D-B9DB-2C46F653F201.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "356CC389-AF5B-44B7-A2E6-5D38BBBF8413.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "4C52911E-8FD4-4A22-8667-7E04B34451DB.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "EC427DA2-43E6-497F-859A-4CF66C0B2598.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "B54CDBDD-10D5-40A4-BFE4-DC7B40326CEC.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "27034A9C-FAB4-48E9-84F6-1AF3A3B1011D.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "4A2A596E-D8E3-44E6-B160-EA998791AD9A.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "335B9B01-EBF3-46F6-A92E-9958DB4FDD9B.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "BC34145D-B71B-4662-803E-0F67694589DC.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "0737E2B0-FBBE-4802-94A1-86812018968F.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "F21A70BD-672A-401B-9825-4518AD2C3FEB.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "BD9A4DD4-72F2-47EE-BFDC-30947E4AF580.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "2E287145-E3F1-4071-807B-9BA77304AA24.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 105,
+    "latitude": 21.0232720332,
+    "longitude": 105.8956483752,
+    "placeName": "48/25 P. Đàm Quang Trung, Tổ Dân Phố Số 16, Long Biên, Hà Nội, Việt Nam",
+    "streetName": "Đường Đàm Quang Trung",
+    "area": 77.3,
+    "actualArea": 77.3,
+    "floors": 3,
+    "wide": 5.8,
+    "depth": 14,
+    "offeringPrice": 13.5,
+    "bedrooms": 2,
+    "bathrooms": 1,
+    "hasCarParking": null,
+    "media": [
+      {
+        "fileName": "1000033507.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033519.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033521.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033520.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033528.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033534.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033529.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033533.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033530.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033532.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033531.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033773.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033526.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033527.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033524.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033523.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033525.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033507.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000033506.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 110,
+    "latitude": 21.0394686281,
+    "longitude": 105.9338209033,
+    "placeName": "2WQM+QGW, Thôn Trung, Phúc Lợi, Hà Nội, Việt Nam",
+    "streetName": null,
+    "area": 75,
+    "actualArea": 75,
+    "floors": null,
+    "wide": 4.6,
+    "depth": 13.6,
+    "offeringPrice": 9,
+    "bedrooms": 3,
+    "bathrooms": 2,
+    "hasCarParking": true,
+    "media": [
+      {
+        "fileName": "4B9A5882-8ECC-47A8-87FA-D73819ECA41E.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "6E81989B-DF4F-45CB-A93E-64A75E8BCD3B.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "E05E6971-5A77-4601-9EF6-FD609A3D49F4.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "F871089A-A820-49C1-87B3-42756291A7BB.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "2A767CE1-4086-4340-A2BE-1431A8BBE43E.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "27B2F8B4-1EFC-461A-8C26-4BC947E11364.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "0FCDD8A0-62F3-4732-857C-7955DCD8F591.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "E3F332A6-43A9-4A3A-B636-76F2D62CAE2C.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "780AC41F-730E-46CC-9184-6C63925D6E03.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "802DAAD6-96A6-43BF-B340-05136903BA92.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "47DC6767-98F3-4137-B6F1-498C1E08B646.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "ABE98C65-F59D-4BC3-BA17-F8CF38246EC8.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "8570AF9C-5BD6-49C9-B0D7-F37BC028EDD2.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "16CD7AB7-D34D-40B1-A3B9-85CAFD7BDEA4.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "940D983E-28D3-4A69-ADF8-E8E38D1B1E99.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "FE55A209-5F8A-443D-8368-CF82DB145FB1.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 111,
+    "latitude": 21.0634331,
+    "longitude": 105.8833011,
+    "placeName": "P. Đức Giang/205 C2 Ngõ 97, Tổ 27, Việt Hưng, Hà Nội, Việt Nam",
+    "streetName": "Phố Đức Giang",
+    "area": 33,
+    "actualArea": 32.7,
+    "floors": 2,
+    "wide": 5.5,
+    "depth": 6,
+    "offeringPrice": 5.8,
+    "bedrooms": 1,
+    "bathrooms": 1,
+    "hasCarParking": null,
+    "media": [
+      {
+        "fileName": "1000017513.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000017498.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000017500.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000017506.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000017496.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 113,
+    "latitude": 21.0239195428,
+    "longitude": 105.9092384577,
+    "placeName": "41 Ngh. 191/39 Đ. Thạch Bàn, Thạch Bàn, Long Biên, Hà Nội, Việt Nam",
+    "streetName": "Đường Thạch Bàn",
+    "area": 33.5,
+    "actualArea": 33.5,
+    "floors": 5,
+    "wide": 4.1,
+    "depth": 8.3,
+    "offeringPrice": 7.55,
+    "bedrooms": 3,
+    "bathrooms": 5,
+    "hasCarParking": null,
+    "media": [
+      {
+        "fileName": "1000047003.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000054348.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000047029.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000054350.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000054352.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000054353.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000054357.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000054356.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000054359.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000054343.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000054346.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000054340.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000054370.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000054371.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1000054344.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 116,
+    "latitude": 21.0684247736,
+    "longitude": 105.8988988772,
+    "placeName": "20 Ngõ 7 Đặng Vũ Hỷ, Thượng Thanh, Việt Hưng, Hà Nội, Việt Nam",
+    "streetName": "Đường Đặng Vũ Hỷ",
+    "area": 33.6,
+    "actualArea": 33.6,
+    "floors": 6,
+    "wide": 4.2,
+    "depth": 8,
+    "offeringPrice": 13.5,
+    "bedrooms": 3,
+    "bathrooms": 1,
+    "hasCarParking": null,
+    "media": [
+      {
+        "fileName": "D8836694-EBC9-45D6-8D63-E7481E5B7787.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "B0D6A0E6-5713-4AC4-9F4A-0A92176C515C.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "CFA2D746-663B-4FC5-B410-99F3CFD00FE8.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "F758EA54-9F68-4F2F-A4FE-76D0ACE039FC.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "9020557A-4C62-4E95-935F-68505A9E3B1A.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "D82921EF-AF4E-497F-9270-0FDBE27AE994.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3DCBB68A-688B-4097-AB85-F3D92E620D36.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "969748C7-893F-45B7-89A0-11A501E4A3D1.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "9CB7AD3A-6458-4BBD-9553-B88E0E069697.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "D5CA7FB1-1110-4437-9858-E5A0F7126360.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "5AE84718-9C21-438A-9FE4-D0AE572433F4.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "7B94D77C-5105-49BA-9863-4B64C4287C2B.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "33C4B3A2-4CF2-4848-B01E-7B2B783D37E9.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "B3EB0420-B7B7-4740-A4F0-01EBF7E1346F.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "21CB5760-ECFB-4198-B5E4-C0EBF057DFF4.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "F44DEFE7-C41E-43DE-B4CB-8926DBE6FC4B.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "AFAC3C43-5681-44C4-AB3F-B1C6576B8B9E.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "04D5FD32-1629-405E-9B95-771F159D9A7D.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "0322E23A-15E6-4CC6-B504-9F1F9F0BD302.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "42DB72F3-E8E2-4504-B578-70B9E394296E.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "825E0C0B-F451-4BA9-AD17-A62BEF96BB50.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "BB404850-235C-4495-950E-DB7C043B0B59.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 117,
+    "latitude": 21.0579994831,
+    "longitude": 105.9009913355,
+    "placeName": "3W52+69V, Kim Quan, Việt Hưng, Hà Nội, Việt Nam",
+    "streetName": "Đường Kim Quan Thượng",
+    "area": 74,
+    "actualArea": 74,
+    "floors": null,
+    "wide": 9.1,
+    "depth": 8,
+    "offeringPrice": 8.8,
+    "bedrooms": 2,
+    "bathrooms": 1,
+    "hasCarParking": null,
+    "media": [
+      {
+        "fileName": "D98BE188-BCE0-4368-8E1E-2A089CB72078.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "C7E54375-D89F-49C4-8EC3-7AEFD2221687.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "898CFCED-C759-42E8-95E6-38F38699CD87.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "F1F1E37D-156F-47D8-99E3-FDDEF6876AF2.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "88C9D46F-3EA7-4FCD-9A03-91A11F5EDAF4.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "D7937DC7-0F75-40AF-AB2B-2FE9DAB2AFFF.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "649CF00F-14A9-40CE-95AD-21102E193E20.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "CEFF5212-3291-4A39-92B7-7CC823884EB4.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "EB506AC4-563E-4BC4-8CAC-34149E83303C.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "80E7D2C6-06A0-4278-A138-B8A8DCC31229.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "D7B4771E-76B4-4789-933C-BA586EC894A3.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "11372381-00C7-40C3-94AE-6799A85C570C.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "5A34CC80-8DAF-423C-BA8B-44546A07EDD6.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 118,
+    "latitude": 21.0580310845,
+    "longitude": 105.9010205045,
+    "placeName": "3W52+69V, Kim Quan, Việt Hưng, Hà Nội, Việt Nam",
+    "streetName": "Đường Kim Quan Thượng",
+    "area": 144,
+    "actualArea": 144,
+    "floors": null,
+    "wide": 7.5,
+    "depth": 17.5,
+    "offeringPrice": 17,
+    "bedrooms": 3,
+    "bathrooms": 2,
+    "hasCarParking": null,
+    "media": [
+      {
+        "fileName": "C7058659-4B17-4B45-9CCD-148F1718637D.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "F1FDBEBC-A395-40C5-B82E-2ED376FA1717.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "B94ED8EA-1C16-4F57-8981-C0855C77DE3F.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "475B62B8-2CED-4D94-B28D-D16559C2DC99.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "700F4368-FAFA-4A77-858D-830A0B7EC5BA.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "1C063E59-7A9E-4ABC-8FE5-63DD81D6DA71.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "74789B08-CBF4-4B84-B92E-7D23C07A6687.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3A6489F1-5AF9-43B6-9EA2-D85230F7AF1B.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "7028FD1E-ED5B-438E-AD01-F88E3B650DAE.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "B35642E6-EEE0-4C9E-A716-030C3E5CC979.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "03472623-62AD-46A8-B511-560FA7084345.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "A068E908-464F-4A6E-8034-7AD7B9C1A0A9.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "0EE266FF-CBC8-4CD6-AD0E-7F5B3315B5F4.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "9841EA85-4658-42DE-A055-8406E3F7B809.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "B8109E6D-95C7-4755-B644-576DA4D50B9E.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "12F828D9-3EBA-4202-8A15-DCDA291F201D.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "F782D466-A95B-4274-99E2-ECEBE8934994.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3CB8F6F2-E8D7-49B9-B476-3C3CFD444D54.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "F4C91A59-3DDA-46A0-A034-05183FF1EAED.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "CB4602BB-6C6B-4FF7-A25D-918D4FA415A4.jpg",
+        "mediaType": "image"
+      }
+    ]
+  },
+  {
+    "id": 107,
+    "latitude": 21.05083706,
+    "longitude": 105.8649577384,
+    "placeName": "",
+    "streetName": "Đường Ngọc Thụy",
+    "area": 70,
+    "actualArea": 70,
+    "floors": 3,
+    "wide": 5,
+    "depth": 16,
+    "offeringPrice": 11.5,
+    "bedrooms": 2,
+    "bathrooms": 3,
+    "hasCarParking": null,
+    "media": [
+      {
+        "fileName": "5B16A140-97E3-4353-90C5-6F1AFE04570F.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "2D9E0142-BF1F-42D2-8EB2-4DBEFACD8891.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "DB79A474-A9A9-4108-A44D-803682BD291D.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "0BE6D208-5871-44C4-A1C9-02F0F30E30D6.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "F91DCDBC-7EDB-4CAE-B224-8421B2FDF144.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "8B9888BD-C744-4984-9896-C56EC2D3A478.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "600C3E91-BBB4-4CD9-A77D-6099D71FFC1B.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "E656861F-2B81-49C4-BB20-E3E3D45343E3.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "3AEEC043-EEC8-4555-9B3A-D9DB8FB64815.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "44F47680-32E8-4ED5-B5D1-966A5E50B685.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "55D58DA6-B418-4145-8335-69F0574F1A8E.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "DEB2E68F-C6C7-4B14-A7F7-681E82C97E6C.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "B5F4DADB-C741-421C-91A9-AE2E548B4B65.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "F25EEB06-F5DD-4E8E-B700-D5CC1117C679.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "2CFF5F17-D9DD-4770-B7D6-DF49E217AB27.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "F7B22214-D5D3-4471-A74A-70CE70DC8839.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "69E664A6-591D-4C78-ABE7-5B003A3BB27D.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "61F59454-9BDF-4864-A925-C5164457922D.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "4D446B19-5971-4950-83F4-BB7CA964C47A.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "56D589B2-EBD0-4707-BEC2-E641B3980E8D.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "DAD15860-28E5-4E08-8970-06679F358244.jpg",
+        "mediaType": "image"
+      },
+      {
+        "fileName": "CE562338-2B3A-43C5-A468-AAAC0872B7E0.jpg",
+        "mediaType": "image"
+      }
+    ]
+  }
+]
