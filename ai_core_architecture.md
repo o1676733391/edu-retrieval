@@ -137,6 +137,7 @@ The system implements strict separation of concerns to handle visually-intensive
 17. **Centralized Prompt Registry System:** Manages system prompts dynamically in a SQLite database via Streamlit UI with version history and rollback capabilities.
 18. **Secure Webhook Layer:** Enforces Bearer Token/API Key verification and allowlist sanitization on incoming webhook overrides in n8n.
 19. **Mentor/Instructor Test Generator & Automated Grading Workflow (`mentor_test_generator_workflow.json`):** Dual-mode n8n workflow supporting structured JSON exam generation with answer key & rubric (`action: "generate"`), and step-by-step automated student submission evaluation against rubrics with structured JSON grading output (`action: "grade"`).
+20. **All-Agent JSON Output & Citations Object Specification:** Unified JSON output enforcement across all n8n agents (`default_teacher`, `barem_review`, `theory_explanation`, `exercise_generator`, `suggestive_tutor`, `direct_solver`). Includes dedicated gibberish/silly words routing (`"kahsdgh"`, `"asdfgh"`) to `default` with polite teacher greeting, and structured citation mapping formatted as `citations: { ref1: ..., ref2: ... }` object map while removing legacy `references` array.
 
 ---
 
@@ -227,6 +228,26 @@ The system implements strict separation of concerns to handle visually-intensive
    ├──> 5. Sorts lessons chronologically by `(volume, physical_page, pdf_page_index)`.
    │
    └──> 6. Returns structured JSON containing `{ file_name: [ { lesson_name, physical_page, pdf_page_number, volume, tag_name_uuid, file_id, file_path, org_id, doc_type } ] }`.
+```
+
+### Workflow G: All-Agent JSON Response & Citation Object Mapping
+```
+[User Query -> n8n Webhook /rag-math-assistant]
+   │
+   ├──> 1. Security & Sanitization Gate filters prompt injection patterns.
+   │
+   ├──> 2. Planner Agent analyzes query:
+   │      ├──> Gibberish/Silly words ("kahsdgh", "asdfgh") -> Routes to `selected_agent: "default"`.
+   │      └──> Academic intent -> Routes to target Expert Agent (`suggestive_tutor`, `direct_solver`, etc.).
+   │
+   ├──> 3. Merge Context Nodes constructs system prompt forcing JSON response:
+   │      └──> Schema: {"message": "...", "suggested_questions": [...]} or Expert Agent Schema.
+   │
+   ├──> 4. Format Final Output node aggregates response and parses JSON payload:
+   │      ├──> Constructs `citations: { "ref1": { document, lesson, position, volume }, "ref2": ... }`.
+   │      └──> Removes legacy `references` array field.
+   │
+   └──> 5. Returns final response payload with `format: "json"`, `output` markdown, and `data` containing structured JSON & citations map.
 ```
 
 ---
