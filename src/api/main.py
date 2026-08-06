@@ -186,6 +186,7 @@ class IngestRequest(BaseModel):
 class CreateDomainRequest(BaseModel):
     domain_name: str
     user_id: Optional[str] = "system"
+    conversation_id: Optional[str] = None
 
 
 class IngestionPayloadRequest(BaseModel):
@@ -214,6 +215,7 @@ class RetrievalPayloadRequest(BaseModel):
     top_k: Optional[int] = 5
     org_ids: Optional[Union[List[str], str]] = None
     user_id: Optional[str] = "system"
+    conversation_id: Optional[str] = None
 
 
 class OutlinePayloadRequest(BaseModel):
@@ -251,6 +253,10 @@ class HouseSearchRequest(BaseModel):
 def send_ai_usage_webhook(payload: dict):
     if not config.BE_API_BASE_URL or not config.WEBHOOK_SECRET:
         return
+    # Normalize blank conversation_id to null so BE doesn't receive an empty string
+    # (n8n sends '' when the client omits conversation_id).
+    if not payload.get("conversation_id"):
+        payload["conversation_id"] = None
     webhook_url = f"{config.BE_API_BASE_URL}/webhooks/ai-usage"
     try:
         response = requests.post(
@@ -663,6 +669,7 @@ def create_domain_endpoint(req: CreateDomainRequest, background_tasks: Backgroun
         
         payload = {
             "user_id": req.user_id,
+            "conversation_id": req.conversation_id,
             "model_name": getattr(embedding_fn, "model_name", "unknown"),
             "model_api_type": model_api_type,
             "total_tokens": 1,
@@ -820,6 +827,7 @@ def retrieval_endpoint(req: RetrievalPayloadRequest, background_tasks: Backgroun
         
         payload = {
             "user_id": req.user_id,
+            "conversation_id": req.conversation_id,
             "model_name": getattr(embedding_fn, "model_name", "unknown"),
             "model_api_type": model_api_type,
             "total_tokens": estimated_input_tokens,
@@ -846,6 +854,7 @@ class LLMRequest(BaseModel):
     prompt: str
     system_instruction: Optional[str] = None
     user_id: Optional[str] = "system"
+    conversation_id: Optional[str] = None
     provider: Optional[str] = "gemini"
 
 
@@ -900,6 +909,7 @@ def call_llm(req: LLMRequest, background_tasks: BackgroundTasks):
         
         payload = {
             "user_id": req.user_id,
+            "conversation_id": req.conversation_id,
             "model_name": "gemini-2.5-flash",
             "model_api_type": req.provider,
             "total_tokens": total_tokens,
