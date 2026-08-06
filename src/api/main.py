@@ -665,7 +665,7 @@ def create_domain_endpoint(req: CreateDomainRequest, background_tasks: Backgroun
                 
         
         duration_ms = int((time.time() - start_time) * 1000)
-        model_api_type = "vertex" if config.USE_VERTEXAI else "openai" if config.OPENAI_API_KEY else "gemini"
+        model_api_type = "local" if config.USE_LOCAL_EMBEDDING else ("vertex" if config.USE_VERTEXAI else "openai" if config.OPENAI_API_KEY else "gemini")
         
         payload = {
             "user_id": req.user_id,
@@ -821,7 +821,7 @@ def retrieval_endpoint(req: RetrievalPayloadRequest, background_tasks: Backgroun
         
         duration_ms = int((time.time() - start_time) * 1000)
         embedding_fn = get_embedding_function()
-        model_api_type = "vertex" if config.USE_VERTEXAI else "openai" if config.OPENAI_API_KEY else "gemini"
+        model_api_type = "local" if config.USE_LOCAL_EMBEDDING else ("vertex" if config.USE_VERTEXAI else "openai" if config.OPENAI_API_KEY else "gemini")
         # Rough heuristic for token calculation
         estimated_input_tokens = max(1, len(req.text) // 4)
         

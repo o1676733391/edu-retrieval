@@ -61,6 +61,27 @@ class GeminiEmbeddingFunction(EmbeddingFunction):
         return embeddings
 
 
+
+class LocalEmbeddingFunction(EmbeddingFunction):
+    def __init__(self, model_name: str = "keepitreal/vietnamese-sbert"):
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError:
+            raise ImportError("Please install sentence-transformers: pip install sentence-transformers")
+        
+        from src import config
+        cache_dir = config.DATA_DIR / "models"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        
+        print(f"[LocalEmbedding] Loading local model '{model_name}' (cache: {cache_dir})...")
+        self.model = SentenceTransformer(model_name, cache_folder=str(cache_dir))
+        self.model_name = model_name
+
+    def __call__(self, input: Documents) -> Embeddings:
+        # SentenceTransformers encode returns a numpy array, convert to list of floats
+        embeddings_numpy = self.model.encode(input, show_progress_bar=False)
+        return embeddings_numpy.tolist()
+
 class OpenAIEmbeddingFunction(EmbeddingFunction):
     def __init__(self, api_key: str, model_name: str = "text-embedding-3-small"):
         from openai import OpenAI
@@ -84,7 +105,10 @@ def get_embedding_function(task_type: str = "RETRIEVAL_DOCUMENT") -> EmbeddingFu
     Returns the appropriate embedding function based on available API keys.
     task_type: "RETRIEVAL_DOCUMENT" for indexing, "RETRIEVAL_QUERY" for search queries.
     """
-    if config.GEMINI_API_KEY or config.USE_VERTEXAI:
+    if config.USE_LOCAL_EMBEDDING:
+        print(f"Using Local Embedding Model: {config.LOCAL_EMBEDDING_MODEL_NAME} ({task_type}).")
+        return LocalEmbeddingFunction(model_name=config.LOCAL_EMBEDDING_MODEL_NAME)
+    elif config.GEMINI_API_KEY or config.USE_VERTEXAI:
         print(f"Using Gemini API for embeddings ({task_type}).")
         model = config.EMBEDDING_MODEL_NAME
         # Ensure the model name starts with models/ ONLY if NOT using Vertex AI

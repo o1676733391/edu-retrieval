@@ -420,9 +420,7 @@ def multi_domain_retrieval(
                     target_cols_to_search.append((ext_c, tag_clean))
 
     if not target_cols_to_search:
-        # Fallback: search all existing collections if clean_tag_uuids is empty or no match
-        for ext_c in existing_cols:
-            target_cols_to_search.append((ext_c, ext_c))
+        return []
 
     # Deduplicate target collections
     unique_target_cols = []
@@ -715,9 +713,7 @@ def get_document_outline(
                         target_collections.append((c, tag_clean))
 
     if not target_collections:
-        # Fallback: query all existing collections
-        for c in existing_cols:
-            target_collections.append((c, c))
+        return {}
 
     # Deduplicate target collections
     unique_target_cols = []
