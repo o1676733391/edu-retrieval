@@ -249,9 +249,16 @@ class HouseSearchRequest(BaseModel):
     top_k: Optional[int] = 5
 
 def send_ai_usage_webhook(payload: dict):
+    if not config.BE_API_BASE_URL or not config.WEBHOOK_SECRET:
+        return
     webhook_url = f"{config.BE_API_BASE_URL}/webhooks/ai-usage"
     try:
-        response = requests.post(webhook_url, json=payload, timeout=5.0)
+        response = requests.post(
+            webhook_url,
+            json=payload,
+            headers={"x-webhook-secret": config.WEBHOOK_SECRET},
+            timeout=5.0
+        )
         print(f"[AI Usage Webhook] Sent to {webhook_url}, Status: {response.status_code}")
     except Exception as e:
         print(f"[AI Usage Webhook] Failed to send to {webhook_url}: {e}")
