@@ -25,8 +25,9 @@ services:
       - CHROMA_PORT=8000
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/data/gcp-key.json
+      - GOOGLE_APPLICATION_CREDENTIALS=/gcp-keys/ocr-stem-44aa72eb7fba.json
     volumes:
+      - C:\gcp-keys:/gcp-keys
       - ./data:/app/data
       - ./data-samples:/app/data-samples
       - ./src:/app/src

@@ -711,6 +711,10 @@ def get_document_outline(
                 for c in existing_cols:
                     if c == tag_clean or c.endswith(f"_{tag_clean}"):
                         target_collections.append((c, tag_clean))
+    else:
+        for c in existing_cols:
+            tag_ref = c.rsplit("_", 1)[0] if "_" in c else c
+            target_collections.append((c, tag_ref))
 
     if not target_collections:
         return {}

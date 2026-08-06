@@ -36,7 +36,8 @@ Các chuyên gia sẵn có:
 - "exercise_generator": Chuyên gia tạo câu hỏi/bài tập luyện tập. (Chọn khi người dùng yêu cầu ra đề mới hoặc cho thêm bài tập tương tự).
 - "suggestive_tutor": Gia sư gợi mở, dẫn dắt học sinh. (Chọn khi học sinh nhờ giải bài nhưng muốn gợi ý, chỉ đường để tự làm).
 - "direct_solver": Chuyên gia giải nhanh và cho đáp án/lời giải ngay lập tức. (Chọn khi người dùng yêu cầu lời giải trực tiếp, đáp số nhanh chóng).
-- "no_intent": Chọn khi câu hỏi chứa từ khóa/khái niệm học tập có nghĩa nhưng chưa rõ ý định cụ thể (ví dụ: "phép nhân 2 chữ số", "hình vuông").
+- "out_of_scope": Người dùng hỏi/yêu cầu về vấn đề KHÔNG NẰM TRONG sách giáo khoa hoặc chủ đề cho phép (ví dụ: nấu ăn, khoa học, thể thao...).
+  - "no_intent": Chọn khi câu hỏi chứa từ khóa/khái niệm học tập có nghĩa nhưng chưa rõ ý định cụ thể (ví dụ: "phép nhân 2 chữ số", "hình vuông").
 - "document_outline": Chuyên gia trích xuất mục lục, danh sách chủ đề, bài học hoặc cấu trúc các phần/chương có trong tài liệu. (Chọn khi người dùng hỏi liệt kê chủ đề, danh sách bài học, xem mục lục sách, hoặc liệt kê các phần/chương có trong sách/tài liệu).
 - "default": Giáo viên/Trợ lý học tập thông thường. (Chọn cho chào hỏi xã giao HOẶC khi người dùng nhập các từ gõ phím vô nghĩa / silly words như "kahsdgh", "asdfgh").
 
@@ -45,7 +46,7 @@ Quy tắc chọn selected_agent = "document_outline":
 - Đặt "requires_rag" là false đối với "document_outline" vì hệ thống sẽ tự động gọi API trích xuất mục lục.
 
 Quy tắc xác định requires_rag:
-- Hệ thống luôn luôn ƯU TIÊN tra cứu dữ liệu từ RAG trước khi sử dụng kiến thức mở rộng của LLM.
+- Hệ thống CHỈ ĐƯỢC PHÉP sử dụng dữ liệu từ RAG, TUYỆT ĐỐI KHÔNG sử dụng kiến thức mở rộng của LLM.
 - Đặt "requires_rag" là true nếu câu hỏi đề cập đến môn học, chương trình, yêu cầu làm bài tập, giải bài, giải thích lý thuyết, hoặc yêu cầu tìm kiếm bài học/bài tập cụ thể trong tài liệu SGK/tài liệu học tập (ví dụ: "liệt kê bài tập số chẵn", "bài tập hình tròn lớp 3", "giải toán trang 15").
 - Đặt "requires_rag" là false nếu câu hỏi chọn "document_outline", câu hỏi chào hỏi xã giao (ví dụ: "chào cô", "hello"), câu hỏi từ vô nghĩa/silly words, câu hỏi thăm phi học thuật, hoặc câu hỏi kiến thức phổ thông đơn giản ngoài phạm vi tài liệu ôn tập.""",
 
@@ -257,7 +258,7 @@ Phản hồi nháp của Giáo viên:
 
 ### QUY TẮC ĐÁNH GIÁ:
 1. Nếu câu hỏi yêu cầu tra cứu SGK/tài liệu (requires_rag là true):
-   - Phản hồi có bám sát Ngữ cảnh tài liệu SGK không? Nếu Ngữ cảnh SGK trống hoặc không chứa thông tin cần thiết, bạn BẮT BUỘC phải chuyển câu trả lời thành thông báo lỗi: "[!] Rất tiếc, trong các trang tài liệu được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này." và KHÔNG in phần trích dẫn nguồn.
+   - Phản hồi có bám sát Ngữ cảnh tài liệu SGK không? Nếu Ngữ cảnh SGK trống hoặc không chứa thông tin cần thiết, bạn BẮT BUỘC phải chuyển câu trả lời thành thông báo lỗi: "không có nội dung" và KHÔNG in phần trích dẫn nguồn.
    - Nếu có thông tin, hãy đảm bảo các bước giải thích chính xác về mặt học thuật và có nguồn trích dẫn đúng định dạng.
 2. Nếu câu hỏi là trò chuyện xã giao (requires_rag là false):
    - Đảm bảo phản hồi thân thiện, ấm áp và phù hợp với vai trò giáo viên. Không cần kiểm tra grounding SGK.
@@ -303,8 +304,8 @@ Phản hồi nháp của Chuyên gia:
 {draft_response}
 
 ### QUY TẮC ĐÁNH GIÁ:
-1. Đối chiếu phản hồi với Ngữ cảnh tài liệu SGK. Nếu Ngữ cảnh SGK trống hoặc không chứa định nghĩa/bài học phù hợp, bạn BẮT BUỘC phải chuyển câu trả lời thành thông báo lỗi: "[!] Rất tiếc, trong các trang tài liệu được trích xuất hiện tại không có thông tin hoặc bài học giải thích cho câu hỏi này." và KHÔNG in phần trích dẫn nguồn.
-2. Phản hồi nháp BẮT BUỘC là một đối tượng JSON hợp lệ gồm đủ 4 trường "concept", "example", "rule_summary", "challenge". Trường "rule_summary" BẮT BUỘC là mảng các đối tượng có "term" và "definition"; nếu nó là một chuỗi văn bản gộp (kể cả có gạch đầu dòng) → CORRECTED và tách lại thành từng phần tử. Nếu không phải JSON hợp lệ hoặc có trường rỗng → CORRECTED và viết lại thành JSON đúng schema.
+1. Đối chiếu phản hồi với Ngữ cảnh tài liệu SGK. Nếu Ngữ cảnh SGK trống hoặc không chứa định nghĩa/bài học phù hợp, bạn BẮT BUỘC phải chuyển câu trả lời thành thông báo lỗi: "không có nội dung" và KHÔNG in phần trích dẫn nguồn.
+2. Phản hồi nháp BẮT BUỘC là một đối tượng JSON hợp lệ gồm đủ 4 trường "concept", "example", "rule_summary", "challenge". Trường "rule_summary" BẮT BUỘC là mảng các đối tượng có "term" và "definition"; nếu nó là một chuỗi văn bản gộp (kể cả có gạch đầu dòng) -> CORRECTED và tách lại thành từng phần tử. Nếu không phải JSON hợp lệ hoặc có trường rỗng -> CORRECTED và viết lại thành JSON đúng schema.
 3. Kiểm tra xem lý thuyết trong "concept"/"example" có được giải thích trực quan, dễ hiểu (dùng ví dụ thực tế) cho học sinh hay không.
 4. Đảm bảo "rule_summary" là tóm tắt quy tắc dễ nhớ và "challenge" là câu hỏi tương tác nhỏ cho học sinh.
 5. Trường "corrected_response" phải là một CHUỖI chứa JSON bài giảng đã chỉnh sửa (đã escape đúng chuẩn), không phải object lồng. Riêng trường hợp thiếu grounding ở quy tắc 1, "corrected_response" là chuỗi thông báo lỗi nguyên văn.

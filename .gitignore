@@ -21,6 +21,7 @@ data/ocr_page_cache.json
 data/ocr_checkpoints/
 data/uploads/
 data/logs/
+data/models/
 *.db
 *.sqlite3
 *.sqlite
