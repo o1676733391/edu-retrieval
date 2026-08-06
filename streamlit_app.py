@@ -19,28 +19,70 @@ ROLE_VISIBILITY_MAPPING = {
 }
 
 def get_all_tag_uuids() -> list[str]:
+    tags = set()
+    # 1. Fetch tags from API outline endpoint
     try:
         res = requests.get(f"{API_BASE_URL}/api/outline", timeout=3)
         if res.status_code == 200:
             data = res.json()
+            if data.get("tag_name_uuids") and isinstance(data["tag_name_uuids"], list):
+                for t in data["tag_name_uuids"]:
+                    if t:
+                        tags.add(str(t).strip())
             outline = data.get("outline", {})
-            tags = set()
             if isinstance(outline, dict):
                 for file_name, lessons in outline.items():
                     for item in lessons:
                         tag = item.get("tag_name_uuid") or item.get("file_id") or item.get("field")
                         if tag:
-                            tags.add(tag)
+                            tags.add(str(tag).strip())
             elif isinstance(outline, list):
                 for item in outline:
                     tag = item.get("tag_name_uuid") or item.get("file_id") or item.get("field")
                     if tag:
-                        tags.add(tag)
-            if tags:
-                return sorted(list(tags))
+                        tags.add(str(tag).strip())
     except Exception:
         pass
-    return ["math"]
+
+    # 2. Discover tags from local processed OCR JSON files in data/
+    data_dir = Path("data")
+    if data_dir.exists():
+        for p in data_dir.glob("processed_*.json"):
+            name = p.stem.replace("processed_", "").replace("_data", "")
+            if name and name not in ("tempdoc",):
+                tags.add(name)
+            try:
+                content = json.loads(p.read_text(encoding="utf-8"))
+                if isinstance(content, list):
+                    for item in content:
+                        if isinstance(item, dict):
+                            t = item.get("tag_name_uuid") or item.get("file_id")
+                            if t:
+                                tags.add(str(t).strip())
+            except Exception:
+                pass
+
+    # 3. Discover tags from local ChromaDB collections
+    try:
+        import chromadb
+        chroma_path = data_dir / "chroma_db"
+        if chroma_path.exists():
+            client = chromadb.PersistentClient(path=str(chroma_path))
+            for col in client.list_collections():
+                for m in (client.get_collection(col.name).get(limit=100).get("metadatas") or []):
+                    if m:
+                        t = m.get("tag_name_uuid") or m.get("file_id") or m.get("field")
+                        if t:
+                            tags.add(str(t).strip())
+    except Exception:
+        pass
+
+    # 4. Standard default tag for textbook
+    tags.add("SGK_TOAN_4_T1_s1_2")
+
+    if tags:
+        return sorted(list(tags))
+    return ["SGK_TOAN_4_T1_s1_2", "math"]
 
 def get_all_org_ids() -> list[str]:
     try:
@@ -579,7 +621,7 @@ with tab_chatbot:
                         "prompt": query_to_send,
                         "agent_mode": mode_to_send,
                         "conversation_id": st.session_state.conversation_id,
-                        "tag_name_uuid": selected_tags if selected_tags else ["math"],
+                        "tag_name_uuid": selected_tags if selected_tags else ["SGK_TOAN_4_T1_s1_2", "math"],
                         "org_id": ["org_default"],
                         "prompt_profile": "default",
                         "user_id": "1"
