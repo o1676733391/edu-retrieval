@@ -32,17 +32,24 @@ The codebase is organized as follows:
 
 Because the textbooks in `data-samples` are scanned images with no embedded text, OCR is required.
 - **Extraction Rules:**
-  1. Use a multimodal vision model (e.g., `gemini-1.5-flash`) to process rendered page images.
+  1. Use a multimodal vision model (e.g., `gemini-2.5-flash`) to process rendered page images.
   2. The OCR API response must be strictly structured in JSON as:
      ```json
      {
        "physical_page": int | null,
-       "lesson_name": "string",
        "text": "string"
      }
      ```
   3. Implement page interpolation in `pdf_parser.py` to fill in physical page numbers that are missing or occluded in the scan.
-- **Caching Rules:** To save token costs during development, the parsed OCR results must be saved to [processed_book_data.json](../../../data/processed_book_data.json). Only re-run the Multimodal OCR from scratch when the `--force` flag is specified.
+  4. Automatic topic/lesson extraction is disabled. Users supply a custom topic range list during ingestion (`topics` parameter in `POST /api/ingest` or `POST /api/ingestion`):
+     ```json
+     [
+       { "title": "Bài 1. Ôn tập các số đến 100 000", "from": 6, "to": 8 },
+       { "title": "Bài 2. Ôn tập các phép tính trong phạm vi 100 000", "from": 9, "to": 11 }
+     ]
+     ```
+     Page chunks are mapped to `lesson_name` based on physical page numbers falling within `[from, to]` bounds.
+- **Caching Rules:** To save token costs during development, the parsed OCR results must be saved to `data/processed_<field>_data.json`. Only re-run the Multimodal OCR from scratch when the `--force` flag is specified.
 
 ---
 

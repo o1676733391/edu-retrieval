@@ -181,6 +181,7 @@ class IngestRequest(BaseModel):
     # Backend compatibility fields
     datetime_str: Optional[str] = None
     collection_name_override: Optional[str] = None
+    topics: Optional[Union[List[dict], str]] = None
 
 
 class CreateDomainRequest(BaseModel):
@@ -200,6 +201,7 @@ class IngestionPayloadRequest(BaseModel):
     volume: Optional[str] = "1"
     force: Optional[bool] = False
     org_id: Optional[str] = "org_default"
+    topics: Optional[Union[List[dict], str]] = None
     
     # Modular execution steps
     step_ocr: Optional[bool] = True
@@ -329,7 +331,8 @@ def ingest_document(req: IngestRequest):
             step_ocr=req.step_ocr,
             step_ingest=req.step_ingest,
             datetime_str=req.datetime_str,
-            collection_name_override=req.collection_name_override
+            collection_name_override=req.collection_name_override,
+            topics=req.topics
         )
         return {
             "status": "success",
@@ -535,16 +538,21 @@ def get_document_chunks_endpoint(file_id: str, field: str = "math", doc_type: st
             f"{clean_field}_{clean_doc_type}"
         ]
         
-        if config.VECTOR_DB_BACKEND == "qdrant":
-            from qdrant_client import QdrantClient
-            if config.QDRANT_HOST:
-                client = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
+        existing_cols = []
+        try:
+            if config.VECTOR_DB_BACKEND == "qdrant":
+                from qdrant_client import QdrantClient
+                if config.QDRANT_HOST:
+                    client = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
+                else:
+                    client = QdrantClient(path=str(config.DATA_DIR / "qdrant_db"))
+                existing_cols = [c.name for c in client.get_collections().collections]
             else:
-                client = QdrantClient(path=str(config.DATA_DIR / "qdrant_db"))
-            existing_cols = [c.name for c in client.get_collections().collections]
-        else:
-            client = get_vector_db_client()
-            existing_cols = [c.name for c in client.list_collections()]
+                client = get_vector_db_client()
+                existing_cols = [c.name for c in client.list_collections()]
+        except Exception as e:
+            print(f"[Warning] Failed to list collections: {e}")
+            existing_cols = []
             
         target_collection_name = None
         where_clause = None
@@ -718,7 +726,8 @@ def ingestion_endpoint(req: IngestionPayloadRequest):
             collection_name_override=col_override_name,
             step_ocr=req.step_ocr,
             step_ingest=req.step_ingest,
-            org_id=req.org_id
+            org_id=req.org_id,
+            topics=req.topics
         )
         return {
             "status": "success",

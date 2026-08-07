@@ -680,16 +680,21 @@ def get_document_outline(
                     clean_org_ids.append(str(item))
 
     # Discover target collections
-    if config.VECTOR_DB_BACKEND == "qdrant":
-        from qdrant_client import QdrantClient
-        if config.QDRANT_HOST:
-            q_client = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
+    existing_cols = []
+    try:
+        if config.VECTOR_DB_BACKEND == "qdrant":
+            from qdrant_client import QdrantClient
+            if config.QDRANT_HOST:
+                q_client = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
+            else:
+                q_client = QdrantClient(path=str(config.DATA_DIR / "qdrant_db"))
+            existing_cols = [c.name for c in q_client.get_collections().collections]
         else:
-            q_client = QdrantClient(path=str(config.DATA_DIR / "qdrant_db"))
-        existing_cols = [c.name for c in q_client.get_collections().collections]
-    else:
-        client = get_vector_db_client()
-        existing_cols = [c.name for c in client.list_collections()]
+            client = get_vector_db_client()
+            existing_cols = [c.name for c in client.list_collections()]
+    except Exception as e:
+        print(f"[Warning] Failed to list vector store collections: {e}")
+        existing_cols = []
 
     target_collections = []
     if clean_tag_uuids:
@@ -708,13 +713,19 @@ def get_document_outline(
                 target_collections.append((curriculum_col, tag_clean))
                 matched = True
             if not matched:
-                for c in existing_cols:
-                    if c == tag_clean or c.endswith(f"_{tag_clean}"):
-                        target_collections.append((c, tag_clean))
+                if existing_cols:
+                    for c in existing_cols:
+                        if c == tag_clean or c.endswith(f"_{tag_clean}"):
+                            target_collections.append((c, tag_clean))
+                else:
+                    target_collections.append((col_name, tag_clean))
     else:
-        for c in existing_cols:
-            tag_ref = c.rsplit("_", 1)[0] if "_" in c else c
-            target_collections.append((c, tag_ref))
+        if existing_cols:
+            for c in existing_cols:
+                tag_ref = c.rsplit("_", 1)[0] if "_" in c else c
+                target_collections.append((c, tag_ref))
+        else:
+            target_collections.append((config.COLLECTION_NAME, "default"))
 
     if not target_collections:
         return {}

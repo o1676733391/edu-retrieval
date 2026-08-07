@@ -99,6 +99,58 @@ def parse_to_epoch(date_input: str) -> float:
         except Exception:
             return datetime.datetime.now(datetime.timezone.utc).timestamp()
 
+def assign_lesson_names_from_topics(pages: list[dict], topics: list[dict]) -> list[dict]:
+    """
+    Assigns lesson_name to each page dictionary based on user-supplied topic range mappings.
+    Each item in topics has the schema:
+    [
+      {
+        "title": "Bài 1. Ôn tập các số đến 100 000",
+        "from": 6,
+        "to": 8
+      }
+    ]
+    Matching rules:
+    - Target page number: physical_page if available and > 0, otherwise pdf_page_number (or pdf_page_index + 1).
+    - If target page number falls within [item["from"], item["to"]], set page["lesson_name"] = item["title"].
+    - If no range matches, default page["lesson_name"] = "Khác".
+    """
+    if not pages:
+        return pages
+
+    for p in pages:
+        phys_page = p.get("physical_page")
+        if phys_page is not None and phys_page > 0:
+            page_num = int(phys_page)
+        else:
+            page_num = int(p.get("pdf_page_number", p.get("pdf_page_index", 0) + 1))
+
+        matched_title = None
+        if topics and isinstance(topics, list):
+            for t in topics:
+                if not isinstance(t, dict):
+                    continue
+                t_from = t.get("from")
+                t_to = t.get("to")
+                t_title = t.get("title")
+                if t_from is not None and t_to is not None and t_title:
+                    try:
+                        t_from_int = int(t_from)
+                        t_to_int = int(t_to)
+                        if t_from_int <= page_num <= t_to_int:
+                            matched_title = str(t_title).strip()
+                            break
+                    except (ValueError, TypeError):
+                        continue
+
+        if matched_title:
+            p["lesson_name"] = matched_title
+        elif not p.get("lesson_name"):
+            p["lesson_name"] = "Khác"
+
+    return pages
+
+
 def run_ingest(
     force_ocr: bool = False,
     field: str = "math",
@@ -117,7 +169,8 @@ def run_ingest(
     collection_name_override: str = None,
     step_ocr: bool = True,
     step_ingest: bool = True,
-    org_id: str = "org_default"
+    org_id: str = "org_default",
+    topics: list = None
 ):
     """
     Main ingestion script. 
@@ -239,6 +292,24 @@ def run_ingest(
                 processed_pages = json.load(f)
         else:
             raise ValueError(f"Cannot skip OCR: Cache file not found at {cache_file}. Please run with step_ocr=True first.")
+
+    # Apply user-supplied topic range mapping if topics are provided
+    if topics:
+        if isinstance(topics, str):
+            try:
+                topics = json.loads(topics)
+            except Exception as e:
+                print(f"[Warning] Failed to parse topics JSON string: {e}")
+                topics = []
+        if isinstance(topics, list):
+            print(f"Applying user-supplied topic range mappings ({len(topics)} topics) to {len(processed_pages)} pages...")
+            processed_pages = assign_lesson_names_from_topics(processed_pages, topics)
+            if cache_file and processed_pages:
+                try:
+                    with open(cache_file, "w", encoding="utf-8") as f:
+                        json.dump(processed_pages, f, ensure_ascii=False, indent=2)
+                except Exception as e:
+                    print(f"[Warning] Failed to update cache file with assigned topics: {e}")
 
     # Guardrail Check for step_ingest
     if not step_ingest:
