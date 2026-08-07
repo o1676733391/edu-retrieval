@@ -1,0 +1,281 @@
+{
+  "id": "CUSTOM_EXERCISE_GENERATOR_WF",
+  "name": "Custom Exercise Generator Workflow (Topic Scope & Level Criteria)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "custom-exercise-generator",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f8a2d8a1-c24c-4a37-b4bc-7c3e1e82ef01",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const body = $('Webhook').first().json.body || {};\n\nlet tagUuidList = [];\nif (body.tag_name_uuid) {\n  if (Array.isArray(body.tag_name_uuid)) {\n    tagUuidList = body.tag_name_uuid;\n  } else if (typeof body.tag_name_uuid === 'string') {\n    try {\n      const parsed = JSON.parse(body.tag_name_uuid);\n      tagUuidList = Array.isArray(parsed) ? parsed : [body.tag_name_uuid];\n    } catch (e) {\n      tagUuidList = body.tag_name_uuid.split(',').map(s => s.trim()).filter(Boolean);\n    }\n  }\n}\n\nlet orgIdList = [];\nif (body.org_id) {\n  if (Array.isArray(body.org_id)) {\n    orgIdList = body.org_id;\n  } else if (typeof body.org_id === 'string') {\n    try {\n      const parsed = JSON.parse(body.org_id);\n      orgIdList = Array.isArray(parsed) ? parsed : [body.org_id];\n    } catch (e) {\n      orgIdList = body.org_id.split(',').map(s => s.trim()).filter(Boolean);\n    }\n  }\n}\n\nlet questionsList = [];\nif (body.questions) {\n  if (Array.isArray(body.questions)) {\n    questionsList = body.questions;\n  } else if (typeof body.questions === 'string') {\n    try {\n      const parsed = JSON.parse(body.questions);\n      if (Array.isArray(parsed)) questionsList = parsed;\n    } catch (e) {}\n  }\n}\n\nconst normalizedQuestions = questionsList.map(q => {\n  const num = q[\"number of question\"] !== undefined ? q[\"number of question\"] : (q[\"number_of_questions\"] !== undefined ? q[\"number_of_questions\"] : (q[\"count\"] || 1));\n  const rawLevel = String(q.level || \"normal\").trim().toLowerCase();\n  const levelMap = {\n    'theory_application': 'review_exercise',\n    'review_exercise': 'review_exercise',\n    'basic': 'basic',\n    'medium': 'normal',\n    'normal': 'normal',\n    'advanced': 'advance',\n    'advance': 'advance',\n    'exploration': 'discovery',\n    'discovery': 'discovery'\n  };\n  const normalizedLevel = levelMap[rawLevel] || rawLevel;\n  return {\n    title: q.title || \"Bài tập tổng hợp\",\n    level: normalizedLevel,\n    type: q.type || \"multiple_choice\",\n    number_of_questions: parseInt(num, 10) || 1\n  };\n});\n\nlet criteriaObj = body.criteria || {};\nif (typeof criteriaObj === 'string') {\n  try {\n    criteriaObj = JSON.parse(criteriaObj);\n  } catch(e) {\n    criteriaObj = { \"tiêu chí\": body.criteria };\n  }\n}\n\nreturn {\n  body: {\n    tag_name_uuid: tagUuidList,\n    org_id: orgIdList,\n    questions: normalizedQuestions,\n    criteria: criteriaObj,\n    user_id: body.user_id || \"system\",\n    conversation_id: body.conversation_id || null\n  }\n};"
+      },
+      "id": "f8a2d8a1-c24c-4a37-b4bc-7c3e1e82ef02",
+      "name": "Security & Sanitization Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const securityNode = $('Security & Sanitization Gate').first().json.body || {};\nconst tagUuids = securityNode.tag_name_uuid || [];\nconst orgIds = securityNode.org_id || [];\nconst questions = securityNode.questions || [];\nconst userId = securityNode.user_id || \"system\";\nconst conversationId = securityNode.conversation_id || null;\n\nlet outlineTopics = [];\nlet outlineStr = \"\";\nlet isOutOfScope = false;\n\nif (tagUuids.length > 0 || orgIds.length > 0) {\n  try {\n    const outlineData = await this.helpers.httpRequest({\n      method: 'POST',\n      url: 'http://host.docker.internal:8080/api/outline',\n      body: {\n        tag_name_uuids: tagUuids,\n        org_ids: orgIds,\n        doc_type: \"doc\"\n      },\n      json: true\n    });\n    \n    if (outlineData && outlineData.outline) {\n      const files = Object.keys(outlineData.outline);\n      files.forEach(f => {\n        const lessons = outlineData.outline[f] || [];\n        lessons.forEach(l => {\n          if (l.lesson_name) outlineTopics.push(l.lesson_name.toLowerCase());\n        });\n      });\n      if (outlineTopics.length > 0) {\n        outlineStr = \"Các chủ đề có trong tài liệu SGK:\\n- \" + Array.from(new Set(outlineTopics)).join(\"\\n- \");\n      }\n    }\n  } catch(e) {}\n}\n\nconst requestedTitles = questions.map(q => q.title).filter(Boolean);\nconst queryText = requestedTitles.join(\" \") || \"bài tập toán tiểu học\";\n\nif (outlineTopics.length > 0 && requestedTitles.length > 0) {\n  const allTopicsCombined = outlineTopics.join(\" \");\n  let matchedCount = 0;\n  for (const title of requestedTitles) {\n    const titleTokens = title.toLowerCase().split(/\\s+/).filter(t => t.length > 2);\n    const hasMatch = titleTokens.some(t => allTopicsCombined.includes(t));\n    if (hasMatch) matchedCount++;\n  }\n  if (matchedCount === 0) {\n    isOutOfScope = true;\n  }\n}\n\nlet contextTexts = [];\nlet citations = [];\nlet citationList = [];\nlet retrievalFailed = false;\n\nif (!isOutOfScope) {\n  try {\n    const retrievalRes = await this.helpers.httpRequest({\n      method: 'POST',\n      url: 'http://host.docker.internal:8080/api/retrieval',\n      body: {\n        text: queryText,\n        tag_name_uuids: tagUuids,\n        org_ids: orgIds,\n        type: \"doc\",\n        top_k: 5,\n        user_id: userId,\n        conversation_id: conversationId\n      },\n      json: true\n    });\n\n    const results = (retrievalRes.results || []).filter(r => r.distance === undefined || r.distance < 1.3);\n    if (results.length === 0) {\n      retrievalFailed = true;\n    } else {\n      results.forEach((chunk, index) => {\n        const meta = chunk.metadata || {};\n        const physPage = meta.physical_page;\n        const pdfPage = meta.pdf_page_number || (meta.pdf_page_index !== undefined ? meta.pdf_page_index + 1 : undefined);\n        const pageStr = (physPage !== undefined && physPage !== -1) ? `Trang ${physPage}` : (pdfPage !== undefined ? `Trang PDF ${pdfPage}` : 'Trang chưa rõ');\n        const lessonName = meta.lesson_name || 'Chưa rõ';\n        const fileName = meta.file_name || 'SGK Toán 3';\n        const volume = meta.volume || '1';\n        contextTexts.push(`--- Đoạn ${index + 1}: ${fileName}, ${pageStr} ---\\n${chunk.text}`);\n        citations.push(`- **Tài liệu:** ${fileName} | **Bài học:** ${lessonName} | **Vị trí:** ${pageStr} (Tập ${volume})`);\n        citationList.push({ document: fileName, lesson: lessonName, position: pageStr, volume: String(volume) });\n      });\n    }\n  } catch(e) {\n    retrievalFailed = true;\n  }\n}\n\nif (isOutOfScope || retrievalFailed) {\n  isOutOfScope = true;\n}\n\nreturn {\n  out_of_scope: isOutOfScope,\n  joined_context: contextTexts.join('\\n\\n'),\n  citation_block: citations.join('\\n'),\n  citation_list: citationList,\n  outline_str: outlineStr,\n  questions: questions,\n  criteria: securityNode.criteria,\n  user_id: userId,\n  conversation_id: conversationId\n};"
+      },
+      "id": "f8a2d8a1-c24c-4a37-b4bc-7c3e1e82ef03",
+      "name": "Topic Scope & RAG Retrieval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.out_of_scope }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f8a2d8a1-c24c-4a37-b4bc-7c3e1e82ef04",
+      "name": "Check Scope Guardrail",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const webhookBody = $('Webhook').first().json.body || {};\nconst conversationId = webhookBody.conversation_id || \"\";\nconst msg = \"Không có thông tin để trả lời\";\n\nreturn {\n  status: \"out_of_scope\",\n  agent: \"out_of_scope\",\n  type: \"text\",\n  conversation_id: conversationId,\n  output: msg,\n  message: msg\n};"
+      },
+      "id": "f8a2d8a1-c24c-4a37-b4bc-7c3e1e82ef08",
+      "name": "Format Out of Scope Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        940,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const item = $json;\nconst questions = item.questions || [];\nconst criteria = item.criteria || {};\nconst joinedContext = item.joined_context || \"\";\nconst userId = item.user_id || \"system\";\nconst conversationId = item.conversation_id || null;\n\nconst systemInstruction = `[SYSTEM INSTRUCTION - CUSTOM EXERCISE GENERATOR AGENT]\nBạn là Chuyên gia Biên soạn Bài tập Toán Sư phạm Tiểu học. Nhiệm vụ của bạn là dựa vào Ngữ cảnh tài liệu Sách Giáo Khoa (SGK) được cung cấp để tạo ra bộ bài tập toán chất lượng cao, đúng theo các yêu cầu chi tiết của người dùng.\n\n1. QUY ĐỊNH ĐỘ KHÓ (LEVEL):\n- \"review_exercise\" (tương đương \"theory_application\"): Bài tập ôn lại kiến thức vừa học, củng cố các định nghĩa, quy tắc và công thức cốt lõi vừa học trong bài.\n- \"basic\": Mức độ nhận biết, câu hỏi cơ bản, trực tiếp, kiểm tra khả năng ghi nhớ và nhận biết khái niệm cơ bản.\n- \"normal\" (tương đương \"medium\"): Mức độ thông hiểu, áp dụng trực tiếp các quy tắc, công thức để giải bài toán tiêu chuẩn 1-2 bước.\n- \"advance\" (tương đương \"advanced\"): Mức độ vận dụng cao, nâng cao, yêu cầu tư duy phân tích, tổng hợp, bài toán nhiều bước giải.\n- \"discovery\" (tương đương \"exploration\"): Câu hỏi khám phá liên quan đến đời sống thực tế, sự kiện, tin tức, tình huống thực tiễn sinh động giúp học sinh liên hệ kiến thức với thực tế.\n\n2. QUY CHUẨN CÁC DẠNG CÂU HỎI (TYPE):\n- \"multiple_choice\": Câu hỏi trắc nghiệm (gồm nội dung câu hỏi, 4 phương án lựa chọn A, B, C, D và chỉ có 1 đáp án đúng).\n- \"option\": Câu hỏi lựa chọn (dạng Đúng/Sai, nối cột, hoặc chọn đáp án/thẻ từ phù hợp từ danh sách).\n- \"fill_in_blank\": Câu hỏi điền vào chỗ trống (điền số, phép tính hoặc từ ngữ còn thiếu vào ô trống ...).\n- \"essay\": Câu hỏi tự luận (bài toán có lời văn, trình bày chi tiết từng bước giải và kết luận đáp số).\n\n3. TIÊU CHÍ ĐÁNH GIÁ (CRITERIA):\nĐảm bảo mỗi câu hỏi được tạo ra đáp ứng đúng các tiêu chí tiêu chuẩn và các tag tiêu chí được cung cấp:\n${typeof criteria === 'object' ? JSON.stringify(criteria, null, 2) : String(criteria)}\n\n4. ĐỊNH DẠNG ĐẦU RA BẮT BUỘC (STRICT JSON OUTPUT):\nBẮT BUỘC trả về duy nhất một đối tượng JSON với cấu trúc sau (KHÔNG kèm văn bản ngoài JSON, KHÔNG bọc trong khối ```json):\n{\n  \"questions\": [\n    {\n      \"content\": \"Nội dung câu hỏi đầy đủ (string)\",\n      \"criteria\": [\"Tên tiêu chí 1\", \"Tên tiêu chí 2\"],\n      \"answer\": {\n        // Cấu trúc đáp án phù hợp với từng dạng type:\n        // - Với multiple_choice: {\"correct_option\": \"A\", \"options\": {\"A\": \"...\", \"B\": \"...\", \"C\": \"...\", \"D\": \"...\"}}\n        // - Với option: {\"correct_mapping\": {...} hoặc \"correct_choice\": \"...\"}\n        // - Với fill_in_blank: {\"blank_answers\": [\"kết quả 1\", \"kết quả 2\"]}\n        // - Với essay: {\"final_answer\": \"Đáp số\", \"solution_steps\": [{\"step\": 1, \"description\": \"...\"}]}\n      },\n      \"explain\": {\n        \"explanation\": \"Lời giải chi tiết và phương pháp giải giải thích rõ tại sao đáp án đúng (string hoặc object)\"\n      }\n    }\n  ]\n}`;\n\nlet questionsPromptStr = questions.map((q, idx) => {\n  return `Câu ${idx + 1}:\n- Chủ đề/Tên bài: ${q.title}\n- Mức độ khó (level): ${q.level}\n- Dạng câu hỏi (type): ${q.type}\n- Số lượng câu cần tạo: ${q.number_of_questions}`;\n}).join(\"\\n\\n\");\n\nconst userPrompt = `YÊU CẢU TẠO BÀI TẬP TỪ NGƯỜI DÙNG:\n\n${questionsPromptStr}\n\nTIÊU CHÍ BỔ SUNG (CRITERIA):\n${typeof criteria === 'object' ? JSON.stringify(criteria, null, 2) : String(criteria)}\n\nNGỮ CẢNH TÀI LIỆU SGK THAM CHIẾU:\n${joinedContext || \"Không có ngữ cảnh bổ sung.\"}\n\nHãy soạn bộ bài tập theo đúng các yêu cầu trên và trả về kết quả JSON theo đúng schema quy định.`;\n\nreturn {\n  prompt: userPrompt,\n  system_instruction: systemInstruction,\n  user_id: userId,\n  conversation_id: conversationId,\n  criteria: criteria\n};"
+      },
+      "id": "f8a2d8a1-c24c-4a37-b4bc-7c3e1e82ef05",
+      "name": "Prepare Prompt - Custom Exercise Generator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        940,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8080/api/llm",
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "options": {},
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "={{ $json.prompt }}"
+            },
+            {
+              "name": "system_instruction",
+              "value": "={{ $json.system_instruction }}"
+            },
+            {
+              "name": "user_id",
+              "value": "={{ $('Webhook').first().json.body.user_id || 'system' }}"
+            }
+          ]
+        }
+      },
+      "id": "f8a2d8a1-c24c-4a37-b4bc-7c3e1e82ef06",
+      "name": "LLM Call - Custom Exercise Generator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1160,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const llmResult = $('LLM Call - Custom Exercise Generator').first().json || {};\nconst rawText = llmResult.text || \"\";\nlet cleanedText = rawText.replace(/```json/gi, \"\").replace(/```/gi, \"\").trim();\nlet outputObj = null;\n\ntry {\n  outputObj = JSON.parse(cleanedText);\n} catch (e) {\n  const jsonMatch = cleanedText.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    try {\n      outputObj = JSON.parse(jsonMatch[0]);\n    } catch (e2) {\n      outputObj = null;\n    }\n  }\n}\n\nconst webhookBody = $('Webhook').first().json.body || {};\nconst conversationId = webhookBody.conversation_id || \"\";\n\nif (outputObj && Array.isArray(outputObj.questions)) {\n  const formattedQuestions = outputObj.questions.map(q => {\n    let criteriaList = [];\n    if (Array.isArray(q.criteria)) {\n      criteriaList = q.criteria;\n    } else if (typeof q.criteria === 'string') {\n      criteriaList = [q.criteria];\n    } else if (typeof q.criteria === 'object' && q.criteria !== null) {\n      criteriaList = Object.values(q.criteria).map(String);\n    }\n    return {\n      content: String(q.content || \"\").trim(),\n      criteria: criteriaList,\n      answer: typeof q.answer === 'object' && q.answer !== null ? q.answer : { result: String(q.answer || \"\") },\n      explain: typeof q.explain === 'object' && q.explain !== null ? q.explain : { explanation: String(q.explain || \"\") }\n    };\n  });\n\n  return {\n    status: \"success\",\n    agent: \"custom_exercise_generator\",\n    conversation_id: conversationId,\n    questions: formattedQuestions,\n    usage: llmResult.usage || {}\n  };\n} else {\n  return {\n    status: \"warning\",\n    agent: \"custom_exercise_generator\",\n    conversation_id: conversationId,\n    message: \"Custom Exercise Generator output could not be parsed as valid JSON array.\",\n    raw_text: rawText,\n    questions: []\n  };\n}"
+      },
+      "id": "f8a2d8a1-c24c-4a37-b4bc-7c3e1e82ef07",
+      "name": "Format Output - Custom Exercise Generator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "firstIncomingItem"
+      },
+      "id": "f8a2d8a1-c24c-4a37-b4bc-7c3e1e82ef09",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "firstIncomingItem"
+      },
+      "id": "f8a2d8a1-c24c-4a37-b4bc-7c3e1e82ef10",
+      "name": "Respond to Webhook Fallback",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        450
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Security & Sanitization Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Security & Sanitization Gate": {
+      "main": [
+        [
+          {
+            "node": "Topic Scope & RAG Retrieval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Topic Scope & RAG Retrieval": {
+      "main": [
+        [
+          {
+            "node": "Check Scope Guardrail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Scope Guardrail": {
+      "main": [
+        [
+          {
+            "node": "Format Out of Scope Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Prompt - Custom Exercise Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Out of Scope Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Prompt - Custom Exercise Generator": {
+      "main": [
+        [
+          {
+            "node": "LLM Call - Custom Exercise Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Call - Custom Exercise Generator": {
+      "main": [
+        [
+          {
+            "node": "Format Output - Custom Exercise Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output - Custom Exercise Generator": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
