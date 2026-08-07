@@ -112,13 +112,11 @@ class PDFBookParser:
         Đây là hình ảnh trang sách giáo khoa Toán lớp 3, thuộc bộ sách "Kết nối tri thức với cuộc sống".
         Hãy phân tích hình ảnh và thực hiện các nhiệm vụ sau:
         1. Đọc số trang vật lý (được in ở góc dưới của trang sách). Nếu không thấy hoặc bị che khuất, hãy để null.
-        2. Xác định tên bài học lớn hiện tại của trang này (ví dụ: "Bài 4: Phép cộng, phép trừ trong phạm vi 1000").
-        3. Trích xuất toàn bộ văn bản và các bài tập toán trên trang này. Chuyển đổi các biểu thức toán học, phép nhân, phép chia thành định dạng văn bản rõ ràng hoặc LaTeX nếu cần thiết. Đảm bảo giữ đúng thứ tự bài tập.
+        2. Trích xuất toàn bộ văn bản và các bài tập toán trên trang này. Chuyển đổi các biểu thức toán học, phép nhân, phép chia thành định dạng văn bản rõ ràng hoặc LaTeX nếu cần thiết. Đảm bảo giữ đúng thứ tự bài tập.
 
         Trả về kết quả dưới định dạng JSON theo cấu trúc sau:
         {
           "physical_page": <int hoặc null>,
-          "lesson_name": "string",
           "text": "string"
         }
         """
@@ -223,7 +221,6 @@ class PDFBookParser:
         {{
           "pdf_page_number": <số trang PDF gốc tương ứng trong danh sách {pdf_page_numbers}>,
           "physical_page": <số trang vật lý được in trên trang sách, hoặc null nếu không có>,
-          "lesson_name": "tên bài học tương ứng của trang này",
           "text": "toàn bộ văn bản và câu hỏi toán học của trang này"
         }}
         """
@@ -472,13 +469,9 @@ class PDFBookParser:
                     
                 p["physical_page"] = inferred
                 
-            # Clean up and propagate lesson name
-            if not p["lesson_name"] or p["lesson_name"].strip() == "":
-                if i > 0 and pages[i-1]["lesson_name"]:
-                    p["lesson_name"] = pages[i-1]["lesson_name"]
-                else:
-                    p["lesson_name"] = "Giới thiệu / Đầu sách"
+            if p.get("lesson_name"):
+                p["lesson_name"] = str(p["lesson_name"]).strip()
             else:
-                p["lesson_name"] = p["lesson_name"].strip()
+                p["lesson_name"] = None
                 
         return pages

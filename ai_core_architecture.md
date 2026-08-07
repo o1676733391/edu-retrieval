@@ -91,11 +91,19 @@ The system implements strict separation of concerns to handle visually-intensive
     *   `admin` -> No visibility filter (accesses all data).
 *   This filtering is enforced at the database query level (`where` clause in the active Vector Store) to guarantee that users cannot access vectors outside their authorized scope.
 
-### C. Multimodal OCR & Caching
+### C. Multimodal OCR, User-Supplied Topic Mappings & Caching
 *   **DPI Rendering:** Uses `PyMuPDF` to convert PDF pages into PNG images at 150 DPI to ensure clear legibility for Gemini vision models.
-*   **Gemini Vision OCR:** Sends rendered pages to `gemini-2.5-flash` with a prompt demanding physical page numbers, lesson names, and page markdown text in structured JSON format.
-*   **Robust Rate-Limit Handling:** Utilizes a ThreadPoolExecutor with `max_workers=2` and an exponential backoff retry handler (sleeping 15s/30s/45s on `429 RESOURCE_EXHAUSTED` errors) to guarantee complete OCR extraction without empty pages.
-*   **Caching:** Results are cached in `data/processed_book_data.json` to prevent duplicate API costs.
+*   **Gemini Vision OCR:** Sends rendered pages to `gemini-2.5-flash` to extract physical page numbers and page markdown text in structured JSON format (`physical_page`, `text`). Automatic OCR lesson title extraction is disabled to prevent inaccuracies.
+*   **User-Supplied Topic Range Mapping:** Users supply custom topic list arrays during ingestion (`topics` parameter in `POST /api/ingest` or `POST /api/ingestion`):
+    ```json
+    [
+      { "title": "Bài 1. Ôn tập các số đến 100 000", "from": 6, "to": 8 },
+      { "title": "Bài 2. Ôn tập các phép tính trong phạm vi 100 000", "from": 9, "to": 11 }
+    ]
+    ```
+    The ingestion engine maps `lesson_name` for each page chunk based on matching physical page numbers against the user's `[from, to]` bounds.
+*   **Robust Rate-Limit Handling:** Utilizes batching and exponential backoff retry handler (sleeping on `429 RESOURCE_EXHAUSTED` errors) to guarantee complete OCR extraction without empty pages.
+*   **Caching:** Results are cached in `data/processed_<field>_data.json` to prevent duplicate API costs.
 
 ### E. Multi-Domain & Tag UUID Data Model (1:1 Ingestion to 1:N Retrieval)
 *   **Single-UUID Document Ingestion:** Each ingested document (`POST /ingestion`) is tagged with **exactly 1 unique `tag_name_uuid`**. Every chunk generated from the document explicitly attaches `"tag_name_uuid": "uuid_x"` in its metadata.
@@ -138,6 +146,7 @@ The system implements strict separation of concerns to handle visually-intensive
 18. **Secure Webhook Layer:** Enforces Bearer Token/API Key verification and allowlist sanitization on incoming webhook overrides in n8n.
 19. **Mentor/Instructor Test Generator & Automated Grading Workflow (`mentor_test_generator_workflow.json`):** Dual-mode n8n workflow supporting structured JSON exam generation with answer key & rubric (`action: "generate"`), and step-by-step automated student submission evaluation against rubrics with structured JSON grading output (`action: "grade"`).
 20. **All-Agent JSON Output & Citations Object Specification:** Unified JSON output enforcement across all n8n agents (`default_teacher`, `barem_review`, `theory_explanation`, `exercise_generator`, `suggestive_tutor`, `direct_solver`). Includes dedicated gibberish/silly words routing (`"kahsdgh"`, `"asdfgh"`) to `default` with polite teacher greeting, and structured citation mapping formatted as `citations: { ref1: ..., ref2: ... }` object map while removing legacy `references` array.
+21. **Custom Exercise Generator Workflow (`custom_exercise_generator_workflow.json`):** Dedicated n8n workflow for custom exercise set generation based on textbook topic UUIDs (`tag_name_uuid`). Validates topic scope via `/api/outline` and `/api/retrieval` (returning `out_of_scope`: "Không có thông tin để trả lời" when out of scope), standardizes difficulty levels (`review_exercise`, `basic`, `normal`, `advance`, `discovery`) along with equivalent level aliases (`theory_application`, `medium`, `advanced`, `exploration`), standardizes question types (`multiple_choice`, `option`, `fill_in_blank`, `essay`), and formats JSON responses containing `content`, `criteria` tags, `answer` (json), and `explain` (json).
 
 ---
 

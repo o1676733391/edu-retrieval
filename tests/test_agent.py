@@ -86,7 +86,8 @@ class TestEducationalAssistant(unittest.TestCase):
             step_ocr=True,
             step_ingest=True,
             datetime_str=None,
-            collection_name_override=None
+            collection_name_override=None,
+            topics=None
         )
         
         # Test future metadata and tag_name mapping
@@ -122,7 +123,8 @@ class TestEducationalAssistant(unittest.TestCase):
             step_ocr=True,
             step_ingest=True,
             datetime_str=None,
-            collection_name_override=None
+            collection_name_override=None,
+            topics=None
         )
 
     @unittest.mock.patch('src.api.main.book_knowledge_search')
@@ -368,7 +370,8 @@ class TestEducationalAssistant(unittest.TestCase):
             collection_name_override="tag_science_999_doc",
             step_ocr=True,
             step_ingest=True,
-            org_id="org_default"
+            org_id="org_default",
+            topics=None
         )
 
     @unittest.mock.patch('src.api.main.multi_domain_retrieval')
@@ -646,6 +649,51 @@ class TestPromptRegistry(unittest.TestCase):
         self.assertEqual(res_post.json()["status"], "success")
         self.assertIn("SGK_TOAN_4_T1_s1_2.pdf", res_post.json()["outline"])
 
+
+
+    def test_assign_lesson_names_from_topics(self):
+        from src.pipeline.ingest import assign_lesson_names_from_topics
+
+        pages = [
+            {"physical_page": 5, "pdf_page_number": 5, "lesson_name": None},
+            {"physical_page": 6, "pdf_page_number": 6, "lesson_name": None},
+            {"physical_page": 7, "pdf_page_number": 7, "lesson_name": None},
+            {"physical_page": 8, "pdf_page_number": 8, "lesson_name": None},
+            {"physical_page": 9, "pdf_page_number": 9, "lesson_name": None},
+            {"physical_page": 10, "pdf_page_number": 10, "lesson_name": None},
+            {"physical_page": 11, "pdf_page_number": 11, "lesson_name": None},
+            {"physical_page": 12, "pdf_page_number": 12, "lesson_name": None},
+            {"physical_page": 15, "pdf_page_number": 15, "lesson_name": None}
+        ]
+
+        topics = [
+            {
+                "title": "Bài 1. Ôn tập các số đến 100 000",
+                "from": 6,
+                "to": 8
+            },
+            {
+                "title": "Bài 2. Ôn tập các phép tính trong phạm vi 100 000",
+                "from": 9,
+                "to": 11
+            },
+            {
+                "title": "Bài 3. Số chẵn, số lẻ",
+                "from": 12,
+                "to": 13
+            }
+        ]
+
+        mapped = assign_lesson_names_from_topics(pages, topics)
+        self.assertEqual(mapped[0]["lesson_name"], "Khác")
+        self.assertEqual(mapped[1]["lesson_name"], "Bài 1. Ôn tập các số đến 100 000")
+        self.assertEqual(mapped[2]["lesson_name"], "Bài 1. Ôn tập các số đến 100 000")
+        self.assertEqual(mapped[3]["lesson_name"], "Bài 1. Ôn tập các số đến 100 000")
+        self.assertEqual(mapped[4]["lesson_name"], "Bài 2. Ôn tập các phép tính trong phạm vi 100 000")
+        self.assertEqual(mapped[5]["lesson_name"], "Bài 2. Ôn tập các phép tính trong phạm vi 100 000")
+        self.assertEqual(mapped[6]["lesson_name"], "Bài 2. Ôn tập các phép tính trong phạm vi 100 000")
+        self.assertEqual(mapped[7]["lesson_name"], "Bài 3. Số chẵn, số lẻ")
+        self.assertEqual(mapped[8]["lesson_name"], "Khác")
 
 
 if __name__ == "__main__":
