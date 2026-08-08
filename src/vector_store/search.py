@@ -1,4 +1,4 @@
-from src.vector_store.client import get_embedding_function, get_vector_db_client
+from src.vector_store.client import get_embedding_function, get_vector_db_client, get_qdrant_client
 from rank_bm25 import BM25Okapi
 from typing import Optional, Union, List
 import re
@@ -391,11 +391,7 @@ def multi_domain_retrieval(
     
     # List existing collections depending on the active backend
     if config.VECTOR_DB_BACKEND == "qdrant":
-        from qdrant_client import QdrantClient
-        if config.QDRANT_HOST:
-            q_client = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
-        else:
-            q_client = QdrantClient(path=str(config.DATA_DIR / "qdrant_db"))
+        q_client = get_qdrant_client()
         existing_cols = [c.name for c in q_client.get_collections().collections]
     else:
         client = get_vector_db_client()
@@ -617,7 +613,7 @@ def get_document_outline(
     """
     import json
     from src import config
-    from src.vector_store.client import get_vector_store, get_vector_db_client
+    from src.vector_store.client import get_vector_store, get_vector_db_client, get_qdrant_client
 
     # Standardize tag_name_uuids to list[str]
     clean_tag_uuids = []

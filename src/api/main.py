@@ -68,7 +68,7 @@ if not console_logger.handlers:
 from src.pipeline.ingest import run_ingest
 from src.pipeline.houses import run_houses_ingest
 from src.vector_store.search import book_knowledge_search, multi_domain_retrieval
-from src.vector_store.client import get_vector_db_client, get_embedding_function, get_or_create_collection, get_vector_store
+from src.vector_store.client import get_vector_db_client, get_embedding_function, get_or_create_collection, get_vector_store, get_qdrant_client
 from src.prompt_registry.registry import (
     initialize_prompt_db,
     get_active_prompts,
@@ -288,11 +288,7 @@ def health_check():
     """
     try:
         if config.VECTOR_DB_BACKEND == "qdrant":
-            from qdrant_client import QdrantClient
-            if config.QDRANT_HOST:
-                client = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
-            else:
-                client = QdrantClient(path=str(config.DATA_DIR / "qdrant_db"))
+            client = get_qdrant_client()
             client.get_collections()
             db_connected = True
         else:
@@ -640,12 +636,8 @@ def create_domain_endpoint(req: CreateDomainRequest, background_tasks: Backgroun
         embedding_fn = get_embedding_function()
         
         if config.VECTOR_DB_BACKEND == "qdrant":
-            from qdrant_client import QdrantClient
             from qdrant_client.http import models
-            if config.QDRANT_HOST:
-                client = QdrantClient(host=config.QDRANT_HOST, port=config.QDRANT_PORT)
-            else:
-                client = QdrantClient(path=str(config.DATA_DIR / "qdrant_db"))
+            client = get_qdrant_client()
                 
             existing_cols = [c.name for c in client.get_collections().collections]
             dummy_emb = embedding_fn(["dummy"])[0]
