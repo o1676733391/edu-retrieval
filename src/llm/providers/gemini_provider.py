@@ -1,4 +1,6 @@
 from typing import Optional, Tuple, Dict, Any
+from google import genai
+from google.genai import types
 from src import config
 from src.llm.base import BaseLLMProvider
 
@@ -17,20 +19,6 @@ class GeminiProvider(BaseLLMProvider):
         temperature: float = 0.2,
         max_tokens: Optional[int] = None
     ) -> Tuple[str, int, int, int]:
-        from google import genai
-        from google.genai import types
-
-        if config.USE_VERTEXAI:
-            ai_client = genai.Client(
-                vertexai=True,
-                project=config.GOOGLE_CLOUD_PROJECT,
-                location=config.GOOGLE_CLOUD_LOCATION
-            )
-        else:
-            if not config.GEMINI_API_KEY:
-                raise ValueError("GEMINI_API_KEY is not configured in the environment.")
-            ai_client = genai.Client(api_key=config.GEMINI_API_KEY)
-
         config_params: Dict[str, Any] = {}
         if system_instruction:
             config_params["system_instruction"] = system_instruction
@@ -39,11 +27,38 @@ class GeminiProvider(BaseLLMProvider):
         if max_tokens is not None:
             config_params["max_output_tokens"] = max_tokens
 
-        response = ai_client.models.generate_content(
-            model=model_name,
-            contents=prompt,
-            config=types.GenerateContentConfig(**config_params) if config_params else None
-        )
+        try:
+            if config.USE_VERTEXAI:
+                ai_client = genai.Client(
+                    vertexai=True,
+                    project=config.GOOGLE_CLOUD_PROJECT,
+                    location=config.GOOGLE_CLOUD_LOCATION
+                )
+            else:
+                if not config.GEMINI_API_KEY:
+                    raise ValueError("GEMINI_API_KEY is not configured in the environment.")
+                ai_client = genai.Client(api_key=config.GEMINI_API_KEY)
+
+            response = ai_client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(**config_params) if config_params else None
+            )
+        except Exception as e:
+            err_str = str(e)
+            if ("API_KEY_SERVICE_BLOCKED" in err_str or "PERMISSION_DENIED" in err_str or "403" in err_str or "not configured" in err_str) and (config.GOOGLE_APPLICATION_CREDENTIALS or config.GOOGLE_CLOUD_PROJECT):
+                vertex_client = genai.Client(
+                    vertexai=True,
+                    project=config.GOOGLE_CLOUD_PROJECT,
+                    location=config.GOOGLE_CLOUD_LOCATION
+                )
+                response = vertex_client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(**config_params) if config_params else None
+                )
+            else:
+                raise e
 
         text = response.text or ""
         input_tokens = 0

@@ -514,6 +514,16 @@ with st.sidebar:
         help="Chọn tầng mô hình (High, Med, Low) để cân đối giữa độ chính xác và chi phí."
     )
     
+    # Auto-sync active provider and model tier to FastAPI backend
+    try:
+        requests.post(
+            f"{api_base_url}/api/llm/config",
+            json={"provider": llm_provider_selected, "model_tier": llm_tier_selected},
+            timeout=2
+        )
+    except Exception:
+        pass
+    
     # Embeddings / OCR configuration choice
     st.write("**Bộ xử lý Vector Nhúng:** Gemini (text-embedding-004)")
     st.write("**Bộ xử lý OCR:** Multimodal Vision (gemini-2.5-flash)")

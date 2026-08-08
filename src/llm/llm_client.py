@@ -100,15 +100,32 @@ def generate_text(
 
     t0 = time.time()
 
-    # 3. Retrieve modular provider instance and generate
-    provider_instance = get_provider_instance(target_provider)
-    text, in_tok, out_tok, tot_tok = provider_instance.generate(
-        prompt=prompt,
-        system_instruction=system_instruction,
-        model_name=resolved_model,
-        temperature=temperature,
-        max_tokens=max_tokens
-    )
+    # 3. Retrieve modular provider instance and generate with graceful fallback
+    t0 = time.time()
+    try:
+        provider_instance = get_provider_instance(target_provider)
+        text, in_tok, out_tok, tot_tok = provider_instance.generate(
+            prompt=prompt,
+            system_instruction=system_instruction,
+            model_name=resolved_model,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+    except Exception as e:
+        if target_provider != "gemini":
+            print(f"[Warning] Provider '{target_provider}' failed ({e}). Falling back to Gemini...")
+            target_provider = "gemini"
+            resolved_model = config.resolve_model("gemini", target_tier)
+            provider_instance = get_provider_instance("gemini")
+            text, in_tok, out_tok, tot_tok = provider_instance.generate(
+                prompt=prompt,
+                system_instruction=system_instruction,
+                model_name=resolved_model,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+        else:
+            raise e
 
     duration_ms = int((time.time() - t0) * 1000)
     cost = compute_cost(target_provider, resolved_model, in_tok, out_tok)
