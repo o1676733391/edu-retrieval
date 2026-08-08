@@ -279,3 +279,34 @@ The vector index is built using the HNSW algorithm with Cosine similarity:
 CREATE INDEX idx_document_chunks_embedding ON document_chunks USING hnsw (embedding vector_cosine_ops);
 ```
 During retrieval, a unified SQL query extracts the top relevant pages, ensuring that unauthorized users cannot retrieve vectors outside their access scope. Detailed schema documentation is maintained in [README.md](file:///d:/Project%20Local/OCR-STEM/data/postgresql/README.md).
+
+---
+
+## 6. Multi-Provider LLM Router & 3-Tier Model Architecture
+
+To ensure vendor flexibility, cost optimization, and resilience against API outages, the AI agent system implements a universal **Multi-Provider LLM Router** supporting 3 major AI model providers across 3 distinct performance/cost tiers (`high`, `med`, `low`).
+
+### A. Provider and Model Tier Matrix
+
+| Provider Key | Provider Name | High Tier (`high`) | Medium Tier (`med` - Default) | Low Tier (`low`) |
+| :--- | :--- | :--- | :--- | :--- |
+| `gemini` | Google AI Studio / Vertex AI | `gemini-2.5-pro` | `gemini-2.5-flash` | `gemini-2.5-flash-lite` |
+| `openai` | OpenAI API | `gpt-4o` | `gpt-4o-mini` | `gpt-3.5-turbo` |
+| `claude` | Anthropic Claude API | `claude-3-5-sonnet-20241022` | `claude-3-5-haiku-20241022` | `claude-3-haiku-20240307` |
+
+### B. Dynamic Model Resolution & Pricing
+- **Resolver Logic (`src.config.resolve_provider` & `resolve_model`):** Resolves provider and model aliases (e.g. `google` -> `gemini`, `pro` -> `high`, `flash` -> `med`).
+- **Cost & Token Tracking (`src.llm.llm_client.compute_cost`):** Calculates precise USD costs based on input/output token pricing per 1M tokens for each specific model, streaming usage metadata to analytics webhooks.
+
+### C. Universal Endpoints
+- **`POST /api/llm`:** Unified text generation endpoint accepting `prompt`, `system_instruction`, `provider`, `model_tier`, and `model`.
+- **`GET /api/llm/config` & `POST /api/llm/config`:** Retrieves and dynamically updates the runtime global active provider and model tier.
+- **`GET /api/llm/providers`:** Returns the full provider catalog, model tiers, configuration status, and pricing rates.
+
+### D. Modular Provider Architecture & Factory Pattern
+Each LLM Provider is implemented as an isolated class implementing `BaseLLMProvider` under `src/llm/providers/` (`gemini_provider.py`, `openai_provider.py`, `claude_provider.py`). A central `ProviderFactory` (`src/llm/factory.py`) dynamically instantiates and registers providers, ensuring clean separation of concerns and extensibility for future providers.
+
+### E. Zero-Touch n8n Workflow Integration
+To eliminate the overhead of manually threading `provider` and `model_tier` through every n8n workflow node, the backend router implements an **Automatic Global Runtime Fallback**:
+- When `provider` or `model_tier` is omitted from an incoming request to `/api/llm`, the router automatically defaults to the active global runtime configuration set via `/api/llm/config` or the Streamlit control panel.
+- Individual workflow nodes only need to provide standard payload fields (`prompt`, `user_id`, `conversation_id`), keeping all n8n workflows clean, minimal, and completely decoupled from LLM infrastructure details.

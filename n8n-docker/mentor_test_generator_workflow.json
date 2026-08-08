@@ -93,6 +93,14 @@
             {
               "name": "user_id",
               "value": "={{ $('Webhook').first().json.body.user_id || 'system' }}"
+            },
+            {
+              "name": "provider",
+              "value": "={{ $('Webhook').first().json.body.provider || undefined }}"
+            },
+            {
+              "name": "model_tier",
+              "value": "={{ $('Webhook').first().json.body.model_tier || undefined }}"
             }
           ]
         }
@@ -154,11 +162,19 @@
             {
               "name": "user_id",
               "value": "={{ $('Webhook').first().json.body.user_id || 'system' }}"
+            },
+            {
+              "name": "provider",
+              "value": "={{ $('Webhook').first().json.body.provider || undefined }}"
+            },
+            {
+              "name": "model_tier",
+              "value": "={{ $('Webhook').first().json.body.model_tier || undefined }}"
             }
           ]
         }
       },
-      "id": "b6a2d21f-82b1-419b-a0b3-96b05be17099",
+      "id": "e6a2d21f-82b1-419b-a0b3-96b05be17098",
       "name": "Submission Grader Agent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,

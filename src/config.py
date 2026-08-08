@@ -37,6 +37,103 @@ LOCAL_EMBEDDING_MODEL_NAME = os.getenv("LOCAL_EMBEDDING_MODEL_NAME", "keepitreal
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", os.getenv("CLAUDE_API_KEY", ""))
+CLAUDE_API_KEY = ANTHROPIC_API_KEY
+
+# Default LLM Provider & Model Tier settings
+DEFAULT_LLM_PROVIDER = os.getenv("DEFAULT_LLM_PROVIDER", "gemini").lower()
+DEFAULT_LLM_MODEL_TIER = os.getenv("DEFAULT_LLM_MODEL_TIER", "med").lower()
+
+# Multi-Provider Model Matrix with 3 tiers (High, Med, Low)
+LLM_PROVIDER_MODELS = {
+    "gemini": {
+        "display_name": "Google Gemini (Studio / Vertex AI)",
+        "high": "gemini-2.5-pro",
+        "med": "gemini-2.5-flash",
+        "low": "gemini-2.5-flash-lite",
+        "pricing": {
+            "gemini-2.5-pro": (1.25, 5.00),
+            "gemini-2.5-flash": (0.075, 0.30),
+            "gemini-2.5-flash-lite": (0.0375, 0.15)
+        }
+    },
+    "openai": {
+        "display_name": "OpenAI API",
+        "high": "gpt-4o",
+        "med": "gpt-4o-mini",
+        "low": "gpt-3.5-turbo",
+        "pricing": {
+            "gpt-4o": (2.50, 10.00),
+            "gpt-4o-mini": (0.15, 0.60),
+            "gpt-3.5-turbo": (0.50, 1.50)
+        }
+    },
+    "claude": {
+        "display_name": "Anthropic Claude",
+        "high": "claude-3-5-sonnet-20241022",
+        "med": "claude-3-5-haiku-20241022",
+        "low": "claude-3-haiku-20240307",
+        "pricing": {
+            "claude-3-5-sonnet-20241022": (3.00, 15.00),
+            "claude-3-5-haiku-20241022": (0.80, 4.00),
+            "claude-3-haiku-20240307": (0.25, 1.25)
+        }
+    }
+}
+
+PROVIDER_ALIASES = {
+    "gemini": "gemini",
+    "google": "gemini",
+    "studio": "gemini",
+    "vertex": "gemini",
+    "vertexai": "gemini",
+    "openai": "openai",
+    "openaiapi": "openai",
+    "chatgpt": "openai",
+    "gpt": "openai",
+    "claude": "claude",
+    "anthropic": "claude"
+}
+
+TIER_ALIASES = {
+    "high": "high",
+    "pro": "high",
+    "advanced": "high",
+    "deep": "high",
+    "med": "med",
+    "medium": "med",
+    "normal": "med",
+    "standard": "med",
+    "flash": "med",
+    "low": "low",
+    "lite": "low",
+    "fast": "low",
+    "basic": "low",
+    "cheap": "low"
+}
+
+def resolve_provider(provider_str: str | None = None) -> str:
+    """Normalize provider name string to canonical 'gemini', 'openai', or 'claude'."""
+    if not provider_str:
+        return DEFAULT_LLM_PROVIDER
+    p = provider_str.strip().lower()
+    return PROVIDER_ALIASES.get(p, DEFAULT_LLM_PROVIDER)
+
+def resolve_model(provider_str: str | None = None, tier_or_model: str | None = None) -> str:
+    """Resolve concrete model name given provider and tier/model alias."""
+    provider = resolve_provider(provider_str)
+    prov_config = LLM_PROVIDER_MODELS.get(provider, LLM_PROVIDER_MODELS["gemini"])
+    
+    if not tier_or_model:
+        return prov_config.get(DEFAULT_LLM_MODEL_TIER, prov_config["med"])
+    
+    target = tier_or_model.strip()
+    tier_normalized = TIER_ALIASES.get(target.lower())
+    if tier_normalized and tier_normalized in prov_config:
+        return prov_config[tier_normalized]
+    
+    # If a specific model string was provided directly, return it
+    return target
 
 # Vertex AI configs
 USE_VERTEXAI = os.getenv("USE_VERTEXAI", "false").lower() == "true"

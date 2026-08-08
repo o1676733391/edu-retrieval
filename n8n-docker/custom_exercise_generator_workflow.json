@@ -127,6 +127,14 @@
             {
               "name": "user_id",
               "value": "={{ $('Webhook').first().json.body.user_id || 'system' }}"
+            },
+            {
+              "name": "provider",
+              "value": "={{ $('Webhook').first().json.body.provider || undefined }}"
+            },
+            {
+              "name": "model_tier",
+              "value": "={{ $('Webhook').first().json.body.model_tier || undefined }}"
             }
           ]
         }

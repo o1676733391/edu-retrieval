@@ -713,11 +713,13 @@ def get_document_outline(
                 target_collections.append((curriculum_col, tag_clean))
                 matched = True
             if not matched:
+                found_partial = False
                 if existing_cols:
                     for c in existing_cols:
-                        if c == tag_clean or c.endswith(f"_{tag_clean}"):
+                        if c == tag_clean or c.endswith(f"_{tag_clean}") or tag_clean in c:
                             target_collections.append((c, tag_clean))
-                else:
+                            found_partial = True
+                if not found_partial:
                     target_collections.append((col_name, tag_clean))
     else:
         if existing_cols:

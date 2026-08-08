@@ -859,86 +859,72 @@ def retrieval_endpoint(req: RetrievalPayloadRequest, background_tasks: Backgroun
         raise HTTPException(status_code=500, detail=str(e))
 
 
+from src.llm.llm_client import (
+    generate_text,
+    get_active_llm_config,
+    set_active_llm_config,
+    get_all_providers_info
+)
+
+
 class LLMRequest(BaseModel):
     prompt: str
     system_instruction: Optional[str] = None
     user_id: Optional[str] = "system"
     conversation_id: Optional[str] = None
-    provider: Optional[str] = "gemini"
+    provider: Optional[str] = None
+    model_tier: Optional[str] = None
+    model: Optional[str] = None
+
+
+class LLMConfigUpdate(BaseModel):
+    provider: Optional[str] = None
+    model_tier: Optional[str] = None
+
+
+@app.get("/api/llm/config")
+def get_llm_config_endpoint():
+    """Get active LLM provider, model tier, and resolved model name."""
+    return get_active_llm_config()
+
+
+@app.post("/api/llm/config")
+def set_llm_config_endpoint(body: LLMConfigUpdate):
+    """Dynamically set active LLM provider or model tier across the entire system."""
+    return set_active_llm_config(provider=body.provider, model_tier=body.model_tier)
+
+
+@app.get("/api/llm/providers")
+def get_llm_providers_endpoint():
+    """List all supported providers, their 3 model tiers (high, med, low), and pricing."""
+    return get_all_providers_info()
 
 
 @app.post("/api/llm")
 @app.post("/llm")
 def call_llm(req: LLMRequest, background_tasks: BackgroundTasks):
     """
-    Utility endpoint to call the Gemini model using the configured provider (Vertex AI or Google AI Studio).
+    Unified multi-provider LLM endpoint routing requests across Gemini, OpenAI, and Claude
+    with 3 model tier options (High, Med, Low).
     """
     try:
-        from google import genai
-        from google.genai import types
-        
-        if config.USE_VERTEXAI:
-            ai_client = genai.Client(
-                vertexai=True,
-                project=config.GOOGLE_CLOUD_PROJECT,
-                location=config.GOOGLE_CLOUD_LOCATION
-            )
-        else:
-            if not config.GEMINI_API_KEY:
-                raise ValueError("GEMINI_API_KEY is not configured in the environment.")
-            ai_client = genai.Client(api_key=config.GEMINI_API_KEY)
-            
-        config_params = {}
-        if req.system_instruction:
-            config_params["system_instruction"] = req.system_instruction
-            
-        t0 = time.time()
-        
-        response = ai_client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=req.prompt,
-            config=types.GenerateContentConfig(**config_params) if config_params else None
+        res = generate_text(
+            prompt=req.prompt,
+            system_instruction=req.system_instruction,
+            provider=req.provider,
+            model_tier=req.model_tier,
+            model=req.model,
+            user_id=req.user_id,
+            conversation_id=req.conversation_id
         )
-        
-        duration_ms = int((time.time() - t0) * 1000)
-        
-        input_tokens = 0
-        output_tokens = 0
-        total_tokens = 0
-        
-        if response.usage_metadata:
-            input_tokens = response.usage_metadata.prompt_token_count
-            output_tokens = response.usage_metadata.candidates_token_count
-            total_tokens = response.usage_metadata.total_token_count
-            
-        # Standard Gemini 1.5 Flash Pricing (Approximate)
-        # Input: $0.075 per 1M tokens
-        # Output: $0.30 per 1M tokens
-        cost = (input_tokens / 1_000_000) * 0.075 + (output_tokens / 1_000_000) * 0.30
-        
-        payload = {
-            "user_id": req.user_id,
-            "conversation_id": req.conversation_id,
-            "model_name": "gemini-2.5-flash",
-            "model_api_type": req.provider,
-            "total_tokens": total_tokens,
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "cost": cost,
-            "duration_ms": duration_ms
-        }
-        
-        background_tasks.add_task(send_ai_usage_webhook, payload)
-        
-        return {
-            "status": "success",
-            "text": response.text,
-            "usage": payload
-        }
+        if res.get("usage"):
+            background_tasks.add_task(send_ai_usage_webhook, res["usage"])
+        return res
     except Exception as e:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.get("/api/prompts/active")

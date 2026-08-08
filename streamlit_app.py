@@ -490,6 +490,30 @@ with st.sidebar:
         help="Sử dụng url này cho chatbot để kết nối trực tiếp đến luồng n8n multi-agent."
     )
     
+    st.markdown("### 🤖 Cấu hình Multi-Provider LLM")
+    llm_provider_selected = st.sidebar.selectbox(
+        "Nhà cung cấp LLM (Provider)",
+        options=["gemini", "openai", "claude"],
+        index=0,
+        format_func=lambda x: {
+            "gemini": "Google Gemini (Studio / Vertex)",
+            "openai": "OpenAI (GPT API)",
+            "claude": "Anthropic Claude"
+        }.get(x, x),
+        help="Chọn LLM Provider dùng chung cho toàn bộ Agent & Webhook."
+    )
+    llm_tier_selected = st.sidebar.selectbox(
+        "Cấp độ Mô hình (Model Tier)",
+        options=["high", "med", "low"],
+        index=1,
+        format_func=lambda x: {
+            "high": "High (Mạnh nhất - Pro / GPT-4o / Sonnet)",
+            "med": "Medium (Cân bằng - Flash / GPT-4o-mini / Haiku 3.5)",
+            "low": "Low (Tiết kiệm - Flash Lite / GPT-3.5 / Haiku 3)"
+        }.get(x, x),
+        help="Chọn tầng mô hình (High, Med, Low) để cân đối giữa độ chính xác và chi phí."
+    )
+    
     # Embeddings / OCR configuration choice
     st.write("**Bộ xử lý Vector Nhúng:** Gemini (text-embedding-004)")
     st.write("**Bộ xử lý OCR:** Multimodal Vision (gemini-2.5-flash)")
@@ -624,7 +648,9 @@ with tab_chatbot:
                         "tag_name_uuid": selected_tags if selected_tags else ["SGK_TOAN_4_T1_s1_2", "math"],
                         "org_id": ["org_default"],
                         "prompt_profile": "default",
-                        "user_id": "1"
+                        "user_id": "1",
+                        "provider": llm_provider_selected,
+                        "model_tier": llm_tier_selected
                     }
                     
                     headers = {
@@ -1982,34 +2008,56 @@ Lời giải:
 # TAB 10: LLM Proxy Tester
 # =====================================================================
 with tab_llm_proxy:
-    st.markdown("### 🤖 Thử nghiệm LLM Proxy (Multi-Provider Router)")
-    st.markdown("Kiểm tra trực tiếp endpoint `/api/llm` để đảm bảo hệ thống có thể kết nối với các provider khác nhau (Gemini, OpenAI, Claude) và đo lường được chi phí (Token Tracking).")
+    st.markdown("### 🤖 Thử nghiệm LLM Proxy (Multi-Provider Router & Model Tiers)")
+    st.markdown("Kiểm tra trực tiếp endpoint `/api/llm` để đảm bảo hệ thống có thể kết nối với các provider khác nhau (Gemini, OpenAI, Claude) trên 3 tầng Model (High, Med, Low) và đo lường được chi phí (Token Tracking).")
     
     col1, col2 = st.columns([1, 2])
     
     with col1:
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        llm_provider = st.selectbox("Chọn LLM Provider", options=["gemini", "openai", "claude"], index=0)
-        llm_user_id = st.text_input("Mã người dùng (User ID)", value="test_student_123")
-        llm_sys_instruct = st.text_area("System Instruction (Tùy chọn)", value="Bạn là một giáo viên tận tụy. Hãy trả lời ngắn gọn.", height=100)
+        llm_provider = st.selectbox(
+            "Chọn LLM Provider",
+            options=["gemini", "openai", "claude"],
+            index=0,
+            format_func=lambda x: {
+                "gemini": "Google Gemini (Studio / Vertex)",
+                "openai": "OpenAI (GPT API)",
+                "claude": "Anthropic Claude"
+            }.get(x, x),
+            key="tab10_llm_provider"
+        )
+        llm_tier = st.selectbox(
+            "Cấp độ Mô hình (Model Tier)",
+            options=["high", "med", "low"],
+            index=1,
+            format_func=lambda x: {
+                "high": "High (Mạnh nhất - Pro / GPT-4o / Sonnet)",
+                "med": "Medium (Cân bằng - Flash / GPT-4o-mini / Haiku 3.5)",
+                "low": "Low (Tiết kiệm - Flash Lite / GPT-3.5 / Haiku 3)"
+            }.get(x, x),
+            key="tab10_llm_tier"
+        )
+        llm_user_id = st.text_input("Mã người dùng (User ID)", value="test_student_123", key="tab10_user_id")
+        llm_sys_instruct = st.text_area("System Instruction (Tùy chọn)", value="Bạn là một giáo viên tận tụy. Hãy trả lời ngắn gọn.", height=100, key="tab10_sys_instruct")
         st.markdown('</div>', unsafe_allow_html=True)
         
     with col2:
         st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        llm_prompt = st.text_area("Nhập Prompt (Câu hỏi của người dùng)", value="Chào cô giáo, cô có thể hướng dẫn em giải bài 1 trang 15 không ạ?", height=200)
-        submit_llm = st.button("🚀 Gửi qua LLM Proxy", use_container_width=True)
+        llm_prompt = st.text_area("Nhập Prompt (Câu hỏi của người dùng)", value="Chào cô giáo, cô có thể hướng dẫn em giải bài 1 trang 15 không ạ?", height=200, key="tab10_prompt")
+        submit_llm = st.button("🚀 Gửi qua LLM Proxy", use_container_width=True, key="tab10_btn_submit")
         st.markdown('</div>', unsafe_allow_html=True)
         
     if submit_llm:
         if not llm_prompt.strip():
             st.error("Vui lòng nhập Prompt!")
         else:
-            with st.spinner(f"Đang gọi mô hình ngôn ngữ lớn qua provider: **{llm_provider.upper()}**..."):
+            with st.spinner(f"Đang gọi mô hình ngôn ngữ lớn qua provider: **{llm_provider.upper()}** (Tier: **{llm_tier.upper()}**)..."):
                 payload = {
                     "prompt": llm_prompt,
                     "system_instruction": llm_sys_instruct if llm_sys_instruct.strip() else None,
                     "user_id": llm_user_id,
-                    "provider": llm_provider
+                    "provider": llm_provider,
+                    "model_tier": llm_tier
                 }
                 try:
                     res = requests.post(f"{API_BASE_URL}/api/llm", json=payload, timeout=30)
@@ -2022,18 +2070,18 @@ with tab_llm_proxy:
                         
                         if "usage" in data:
                             usage = data["usage"]
-                            st.markdown("### 📊 Thông kê Token & Chi phí (AI Usage Tracking)")
+                            st.markdown("### 📊 Thống kê Token & Chi phí (AI Usage Tracking)")
                             col_t1, col_t2, col_t3, col_t4 = st.columns(4)
-                            col_t1.metric("Tổng Tokens", usage.get("total_tokens", 0))
-                            col_t2.metric("Input Tokens", usage.get("input_tokens", 0))
-                            col_t3.metric("Output Tokens", usage.get("output_tokens", 0))
+                            col_t1.metric("Mô hình thực tế", usage.get("model_name", "N/A"))
+                            col_t2.metric("Tổng Tokens", usage.get("total_tokens", 0))
+                            col_t3.metric("Input / Output", f"{usage.get('input_tokens', 0)} / {usage.get('output_tokens', 0)}")
                             
                             # Format cost as currency $
                             cost_val = usage.get("cost", 0)
                             cost_str = f"${cost_val:.6f}"
                             col_t4.metric("Chi phí ước tính", cost_str)
                             
-                            st.markdown(f"*(Webhook usage tracking đã được gửi ngầm tới BE với User ID: `{usage.get('user_id')}` trong {usage.get('duration_ms')} ms)*")
+                            st.markdown(f"*(Provider: `{usage.get('provider')}` | Tier: `{usage.get('model_tier')}` | Duration: `{usage.get('duration_ms')} ms`)*")
                     else:
                         st.error(f"❌ Lỗi HTTP {res.status_code}: {res.text}")
                 except Exception as e:
