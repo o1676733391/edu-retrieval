@@ -298,15 +298,19 @@ To ensure vendor flexibility, cost optimization, and resilience against API outa
 - **Resolver Logic (`src.config.resolve_provider` & `resolve_model`):** Resolves provider and model aliases (e.g. `google` -> `gemini`, `pro` -> `high`, `flash` -> `med`).
 - **Cost & Token Tracking (`src.llm.llm_client.compute_cost`):** Calculates precise USD costs based on input/output token pricing per 1M tokens for each specific model, streaming usage metadata to analytics webhooks.
 
-### C. Universal Endpoints
+### C. Universal Endpoints & Batch API
 - **`POST /api/llm`:** Unified text generation endpoint accepting `prompt`, `system_instruction`, `provider`, `model_tier`, and `model`.
-- **`GET /api/llm/config` & `POST /api/llm/config`:** Retrieves and dynamically updates the runtime global active provider and model tier.
+- **`POST /api/llm/batch`:** High-performance Batch LLM execution endpoint that processes multiple prompts concurrently in parallel using worker thread pools with aggregated token usage, cost tracking, and latency metrics.
+- **`GET /api/llm/config` & `POST /api/llm/config`:** Retrieves and dynamically updates the runtime global active provider, model tier, and API keys.
+- **`GET /api/llm/keys` & `POST /api/llm/keys`:** Retrieves masked configuration status and dynamically sets/updates API keys in memory without server restarts.
 - **`GET /api/llm/providers`:** Returns the full provider catalog, model tiers, configuration status, and pricing rates.
 
 ### D. Modular Provider Architecture & Factory Pattern
 Each LLM Provider is implemented as an isolated class implementing `BaseLLMProvider` under `src/llm/providers/` (`gemini_provider.py`, `openai_provider.py`, `claude_provider.py`). A central `ProviderFactory` (`src/llm/factory.py`) dynamically instantiates and registers providers, ensuring clean separation of concerns and extensibility for future providers.
 
-### E. Zero-Touch n8n Workflow Integration
+### E. Zero-Touch n8n Workflow Integration & Batch Exercise Generation
 To eliminate the overhead of manually threading `provider` and `model_tier` through every n8n workflow node, the backend router implements an **Automatic Global Runtime Fallback**:
-- When `provider` or `model_tier` is omitted from an incoming request to `/api/llm`, the router automatically defaults to the active global runtime configuration set via `/api/llm/config` or the Streamlit control panel.
+- When `provider` or `model_tier` is omitted from an incoming request to `/api/llm` or `/api/llm/batch`, the router automatically defaults to the active global runtime configuration set via `/api/llm/config` or the Streamlit control panel.
+- **Custom Exercise & Mentor Test Workflows:** Utilize `POST /api/llm/batch` to process question generation requests concurrently while strictly guaranteeing that every returned question object contains canonical `type` (`multiple_choice`, `option`, `fill_in_blank`, `essay`) and `level` (`review_exercise`, `basic`, `normal`, `advance`, `discovery`) metadata fields.
 - Individual workflow nodes only need to provide standard payload fields (`prompt`, `user_id`, `conversation_id`), keeping all n8n workflows clean, minimal, and completely decoupled from LLM infrastructure details.
+

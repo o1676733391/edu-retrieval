@@ -170,3 +170,46 @@ ROLE_VISIBILITY_MAPPING = {
     ROLE_ADMIN: ["public", "teacher_only", "admin_only"]
 }
 
+
+def update_api_key(provider: str, api_key: str):
+    """Dynamically set API key in memory and environment for a provider."""
+    global GEMINI_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, CLAUDE_API_KEY
+    canonical = resolve_provider(provider)
+    if canonical == "openai":
+        OPENAI_API_KEY = api_key.strip()
+        os.environ["OPENAI_API_KEY"] = api_key.strip()
+    elif canonical == "claude":
+        ANTHROPIC_API_KEY = api_key.strip()
+        CLAUDE_API_KEY = api_key.strip()
+        os.environ["ANTHROPIC_API_KEY"] = api_key.strip()
+        os.environ["CLAUDE_API_KEY"] = api_key.strip()
+    elif canonical == "gemini":
+        GEMINI_API_KEY = api_key.strip()
+        os.environ["GEMINI_API_KEY"] = api_key.strip()
+
+
+def get_masked_api_keys() -> dict:
+    """Return masked status of all configured API keys."""
+    def mask(k: str) -> str:
+        if not k:
+            return ""
+        if len(k) <= 8:
+            return "****"
+        return f"{k[:4]}****{k[-4:]}"
+
+    return {
+        "gemini": {
+            "is_configured": bool(GEMINI_API_KEY or USE_VERTEXAI or GOOGLE_APPLICATION_CREDENTIALS),
+            "auth_type": "vertex_ai" if USE_VERTEXAI else ("google_ai_studio" if GEMINI_API_KEY else "none"),
+            "masked_key": mask(GEMINI_API_KEY)
+        },
+        "openai": {
+            "is_configured": bool(OPENAI_API_KEY),
+            "masked_key": mask(OPENAI_API_KEY)
+        },
+        "claude": {
+            "is_configured": bool(ANTHROPIC_API_KEY or CLAUDE_API_KEY),
+            "masked_key": mask(ANTHROPIC_API_KEY or CLAUDE_API_KEY)
+        }
+    }
+

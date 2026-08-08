@@ -524,6 +524,28 @@ with st.sidebar:
     except Exception:
         pass
     
+    with st.sidebar.expander("🔑 Cập nhật nhanh API Keys (Runtime)", expanded=False):
+        in_openai_key = st.text_input("OpenAI API Key:", type="password", placeholder="sk-proj-...", key="sb_openai_key")
+        in_claude_key = st.text_input("Claude API Key:", type="password", placeholder="sk-ant-...", key="sb_claude_key")
+        in_gemini_key = st.text_input("Gemini API Key:", type="password", placeholder="AIzaSy...", key="sb_gemini_key")
+        if st.button("💾 Lưu API Keys vào Runtime", key="save_api_keys_btn"):
+            key_payload = {}
+            if in_openai_key:
+                key_payload["openai_api_key"] = in_openai_key
+            if in_claude_key:
+                key_payload["anthropic_api_key"] = in_claude_key
+            if in_gemini_key:
+                key_payload["gemini_api_key"] = in_gemini_key
+            if key_payload:
+                try:
+                    res_keys = requests.post(f"{api_base_url}/api/llm/keys", json=key_payload, timeout=5)
+                    if res_keys.status_code == 200:
+                        st.success("✅ Đã cập nhật API Keys vào bộ nhớ máy chủ!")
+                    else:
+                        st.error(f"❌ Lỗi cập nhật: {res_keys.text}")
+                except Exception as ex_k:
+                    st.error(f"❌ Lỗi kết nối: {ex_k}")
+    
     # Embeddings / OCR configuration choice
     st.write("**Bộ xử lý Vector Nhúng:** Gemini (text-embedding-004)")
     st.write("**Bộ xử lý OCR:** Multimodal Vision (gemini-2.5-flash)")

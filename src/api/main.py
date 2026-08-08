@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Dict, Any
 from src import config
 
 LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "logs")
@@ -872,21 +872,72 @@ class LLMRequest(BaseModel):
 class LLMConfigUpdate(BaseModel):
     provider: Optional[str] = None
     model_tier: Optional[str] = None
+    openai_api_key: Optional[str] = None
+    anthropic_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None
+
+
+class APIKeysUpdate(BaseModel):
+    openai_api_key: Optional[str] = None
+    anthropic_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None
+    claude_api_key: Optional[str] = None
 
 
 @app.get("/api/llm/config")
+@app.get("/llm/config")
 def get_llm_config_endpoint():
     """Get active LLM provider, model tier, and resolved model name."""
     return get_active_llm_config()
 
 
 @app.post("/api/llm/config")
+@app.post("/llm/config")
 def set_llm_config_endpoint(body: LLMConfigUpdate):
-    """Dynamically set active LLM provider or model tier across the entire system."""
+    """Dynamically set active LLM provider, model tier, or API keys across the entire system."""
+    if body.openai_api_key:
+        config.update_api_key("openai", body.openai_api_key)
+    if body.anthropic_api_key:
+        config.update_api_key("claude", body.anthropic_api_key)
+    if body.gemini_api_key:
+        config.update_api_key("gemini", body.gemini_api_key)
+
     return set_active_llm_config(provider=body.provider, model_tier=body.model_tier)
 
 
+@app.get("/api/llm/keys")
+@app.get("/llm/keys")
+def get_api_keys_endpoint():
+    """Get configuration status and masked values for all LLM API keys."""
+    return config.get_masked_api_keys()
+
+
+@app.post("/api/llm/keys")
+@app.post("/llm/keys")
+def set_api_keys_endpoint(body: APIKeysUpdate):
+    """Dynamically configure or update API keys at runtime without restarting the server."""
+    updated = {}
+    if body.openai_api_key:
+        config.update_api_key("openai", body.openai_api_key)
+        updated["openai"] = "updated"
+    if body.anthropic_api_key or body.claude_api_key:
+        key = body.anthropic_api_key or body.claude_api_key
+        config.update_api_key("claude", key)
+        updated["claude"] = "updated"
+    if body.gemini_api_key:
+        config.update_api_key("gemini", body.gemini_api_key)
+        updated["gemini"] = "updated"
+
+    return {
+        "status": "success",
+        "message": "API keys updated successfully in memory.",
+        "updated": updated,
+        "current_status": config.get_masked_api_keys()
+    }
+
+
 @app.get("/api/llm/providers")
+@app.get("/llm/providers")
 def get_llm_providers_endpoint():
     """List all supported providers, their 3 model tiers (high, med, low), and pricing."""
     return get_all_providers_info()
@@ -916,6 +967,155 @@ def call_llm(req: LLMRequest, background_tasks: BackgroundTasks):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class LLMBatchItem(BaseModel):
+    id: Optional[Union[str, int]] = None
+    prompt: str
+    system_instruction: Optional[str] = None
+    provider: Optional[str] = None
+    model_tier: Optional[str] = None
+    model: Optional[str] = None
+    user_id: Optional[str] = "system"
+    conversation_id: Optional[str] = None
+    temperature: float = 0.2
+    max_tokens: Optional[int] = None
+
+
+class LLMBatchRequest(BaseModel):
+    items: List[LLMBatchItem]
+    provider: Optional[str] = None
+    model_tier: Optional[str] = None
+    model: Optional[str] = None
+    user_id: Optional[str] = "system"
+    conversation_id: Optional[str] = None
+
+
+@app.post("/api/llm/batch")
+@app.post("/llm/batch")
+def call_llm_batch(req: LLMBatchRequest, background_tasks: BackgroundTasks):
+    """
+    High-performance Batch LLM execution endpoint that processes multiple prompts
+    concurrently in parallel with aggregated token usage, cost tracking, and latency metrics.
+    """
+    import concurrent.futures
+    start_time = time.time()
+    
+    if not req.items:
+        return {
+            "status": "success",
+            "results": [],
+            "total_items": 0,
+            "successful_items": 0,
+            "failed_items": 0,
+            "aggregated_usage": {
+                "total_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cost": 0.0,
+                "duration_ms": 0
+            },
+            "duration_ms": 0
+        }
+
+    def process_single(idx: int, item: LLMBatchItem) -> Dict[str, Any]:
+        item_id = item.id if item.id is not None else idx
+        eff_provider = item.provider or req.provider
+        eff_tier = item.model_tier or req.model_tier
+        eff_model = item.model or req.model
+        eff_user_id = item.user_id or req.user_id
+        eff_conv_id = item.conversation_id or req.conversation_id
+
+        try:
+            res = generate_text(
+                prompt=item.prompt,
+                system_instruction=item.system_instruction,
+                provider=eff_provider,
+                model_tier=eff_tier,
+                model=eff_model,
+                user_id=eff_user_id,
+                conversation_id=eff_conv_id,
+                temperature=item.temperature,
+                max_tokens=item.max_tokens
+            )
+            return {
+                "id": item_id,
+                "status": "success",
+                "text": res.get("text", ""),
+                "provider": res.get("provider", eff_provider),
+                "model_tier": res.get("model_tier", eff_tier),
+                "model_name": res.get("model_name", eff_model),
+                "usage": res.get("usage", {})
+            }
+        except Exception as ex:
+            return {
+                "id": item_id,
+                "status": "error",
+                "error": str(ex),
+                "text": "",
+                "provider": eff_provider,
+                "model_tier": eff_tier
+            }
+
+    max_workers = min(len(req.items), 10)
+    results = [None] * len(req.items)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_map = {
+            executor.submit(process_single, i, item): i
+            for i, item in enumerate(req.items)
+        }
+        for future in concurrent.futures.as_completed(future_map):
+            idx = future_map[future]
+            try:
+                results[idx] = future.result()
+            except Exception as e:
+                results[idx] = {
+                    "id": req.items[idx].id if req.items[idx].id is not None else idx,
+                    "status": "error",
+                    "error": str(e),
+                    "text": ""
+                }
+
+    total_duration_ms = int((time.time() - start_time) * 1000)
+    total_in = 0
+    total_out = 0
+    total_tok = 0
+    total_cost = 0.0
+    success_count = 0
+    fail_count = 0
+
+    for r in results:
+        if r.get("status") == "success":
+            success_count += 1
+            u = r.get("usage", {})
+            total_in += u.get("input_tokens", 0)
+            total_out += u.get("output_tokens", 0)
+            total_tok += u.get("total_tokens", 0)
+            total_cost += u.get("cost", 0.0)
+            if u:
+                background_tasks.add_task(send_ai_usage_webhook, u)
+        else:
+            fail_count += 1
+
+    agg_usage = {
+        "user_id": req.user_id,
+        "conversation_id": req.conversation_id,
+        "total_tokens": total_tok,
+        "input_tokens": total_in,
+        "output_tokens": total_out,
+        "cost": total_cost,
+        "duration_ms": total_duration_ms
+    }
+
+    return {
+        "status": "success" if fail_count == 0 else ("partial_success" if success_count > 0 else "failed"),
+        "results": results,
+        "total_items": len(req.items),
+        "successful_items": success_count,
+        "failed_items": fail_count,
+        "aggregated_usage": agg_usage,
+        "duration_ms": total_duration_ms
+    }
 
 
 
