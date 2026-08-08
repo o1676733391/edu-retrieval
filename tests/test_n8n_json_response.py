@@ -27,9 +27,9 @@ class TestN8nJsonResponseAndCitations(unittest.TestCase):
             self.workflow_json = json.load(f)
 
     def test_workflow_json_structure_and_nodes(self):
-        """Test that rag_pedagogical_workflow.json is valid JSON with 22 nodes."""
+        """Test that rag_pedagogical_workflow.json is valid JSON with 23 nodes."""
         nodes = self.workflow_json.get("nodes", [])
-        self.assertEqual(len(nodes), 22, f"Expected 22 workflow nodes, got {len(nodes)}")
+        self.assertEqual(len(nodes), 23, f"Expected 23 workflow nodes, got {len(nodes)}")
         node_names = [n["name"] for n in nodes]
         self.assertIn("Format Final Output", node_names)
         self.assertIn("Merge Context Nodes", node_names)
@@ -100,6 +100,26 @@ class TestN8nJsonResponseAndCitations(unittest.TestCase):
         self.assertIn("'kahsdgh'", js_code)
         self.assertIn("'guidance'", js_code)
         self.assertNotIn('"guidance":', js_code)
+
+    def test_custom_exercise_generator_workflow_level_and_type(self):
+        """Verify custom_exercise_generator_workflow.json exists, has prompt and output formatting for level & type."""
+        custom_wf_path = Path("n8n-docker/custom_exercise_generator_workflow.json")
+        self.assertTrue(custom_wf_path.exists(), "custom_exercise_generator_workflow.json must exist")
+        with open(custom_wf_path, "r", encoding="utf-8") as f:
+            wf_json = json.load(f)
+
+        nodes = {n["name"]: n for n in wf_json.get("nodes", [])}
+        self.assertIn("Prepare Prompt - Custom Exercise Generator", nodes)
+        self.assertIn("Format Output - Custom Exercise Generator", nodes)
+
+        prep_code = nodes["Prepare Prompt - Custom Exercise Generator"]["parameters"]["jsCode"]
+        self.assertIn('"level": "review_exercise | basic | normal | advance | discovery"', prep_code)
+        self.assertIn('"type": "multiple_choice | option | fill_in_blank | essay"', prep_code)
+
+        format_code = nodes["Format Output - Custom Exercise Generator"]["parameters"]["jsCode"]
+        self.assertIn("level: normalizedLevel", format_code)
+        self.assertIn("type: qType", format_code)
+        self.assertIn("levelMap", format_code)
 
 
 if __name__ == "__main__":
